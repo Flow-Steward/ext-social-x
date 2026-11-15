@@ -1,0 +1,30 @@
+queries:
+- query_id: provider_health
+  title: Local bundle health
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  result_fields:
+  - status
+  error_codes:
+  - invalid_host_envelope
+  - invalid_payload
+  - invalid_connection
+  - invalid_post
+  - invalid_image
+  - unsupported_image
+  - input_too_large
+  - image_too_large
+  - artifact_access_failed
+  - authorization_required
+  - forbidden
+  - credits_required
+  - rate_limited
+  - not_found
+  - provider_unavailable
+  - response_too_large
+  - timeout_unknown
+  - webhook_not_ready
+  - not_configured
+  - internal_error

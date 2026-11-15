@@ -1,0 +1,253 @@
+operations:
+- operation_id: validate_post
+  display_name: Validate post
+  operation_kind: action
+  workflow_visible: true
+  category: social
+  connection_type_ids: []
+  inputs:
+  - name: text
+    value_type: text
+    required: true
+  - name: canonical_url
+    value_type: text
+    required: false
+  outputs:
+  - name: text
+    value_type: text
+  - name: weighted_length
+    value_type: integer
+  - name: valid
+    value_type: boolean
+  - name: errors
+    value_type: array
+  error_codes: &id001
+  - invalid_host_envelope
+  - invalid_payload
+  - invalid_connection
+  - invalid_post
+  - invalid_image
+  - unsupported_image
+  - input_too_large
+  - image_too_large
+  - artifact_access_failed
+  - authorization_required
+  - forbidden
+  - credits_required
+  - rate_limited
+  - not_found
+  - provider_unavailable
+  - response_too_large
+  - timeout_unknown
+  - webhook_not_ready
+  - not_configured
+  - internal_error
+- operation_id: prepare_image
+  display_name: Prepare image
+  operation_kind: action
+  workflow_visible: true
+  category: social
+  connection_type_ids: []
+  inputs:
+  - name: artifact_handle
+    value_type: artifact_handle
+    required: true
+  outputs:
+  - name: image_artifact_handle
+    value_type: artifact_handle
+  - name: mime_type
+    value_type: text
+  - name: width
+    value_type: integer
+  - name: height
+    value_type: integer
+  - name: size_bytes
+    value_type: integer
+  error_codes: *id001
+- operation_id: upload_media
+  display_name: Upload media
+  operation_kind: action
+  workflow_visible: true
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs:
+  - name: connection_ref
+    value_type: connection_ref
+    required: true
+  - name: artifact_handle
+    value_type: artifact_handle
+    required: true
+  - name: alt_text
+    value_type: text
+    required: false
+  outputs:
+  - name: media_id
+    value_type: text
+  - name: expires_after_secs
+    value_type: integer
+  - name: media_ids
+    value_type: array
+  error_codes: *id001
+- operation_id: publish_post
+  display_name: Publish post
+  operation_kind: action
+  workflow_visible: true
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs:
+  - name: connection_ref
+    value_type: connection_ref
+    required: true
+  - name: text
+    value_type: text
+    required: true
+  - name: canonical_url
+    value_type: text
+    required: false
+  - name: media_ids
+    value_type: array
+    required: false
+  outputs:
+  - name: post_id
+    value_type: text
+  - name: url
+    value_type: text
+  - name: text
+    value_type: text
+  error_codes: *id001
+- operation_id: get_post
+  display_name: Get post
+  operation_kind: source
+  workflow_visible: true
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs:
+  - name: connection_ref
+    value_type: connection_ref
+    required: true
+  - name: post_id
+    value_type: text
+    required: true
+  outputs:
+  - name: post
+    value_type: object
+  error_codes: *id001
+- operation_id: reply_to_post
+  display_name: Reply to post
+  operation_kind: action
+  workflow_visible: true
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs:
+  - name: connection_ref
+    value_type: connection_ref
+    required: true
+  - name: reply_to_post_id
+    value_type: text
+    required: true
+  - name: text
+    value_type: text
+    required: true
+  - name: media_ids
+    value_type: array
+    required: false
+  - name: automated
+    value_type: boolean
+    required: false
+  outputs:
+  - name: post_id
+    value_type: text
+  - name: url
+    value_type: text
+  - name: text
+    value_type: text
+  error_codes: *id001
+- operation_id: verify_identity
+  display_name: Verify identity
+  operation_kind: action
+  workflow_visible: false
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs: []
+  outputs:
+  - name: subject
+    value_type: text
+  - name: verified_display_name
+    value_type: text
+  - name: safe_metadata
+    value_type: object
+  - name: health
+    value_type: text
+  error_codes: *id001
+- operation_id: configure_webhook
+  display_name: Configure webhook
+  operation_kind: action
+  workflow_visible: false
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs:
+  - name: callback_url
+    value_type: text
+    required: true
+  outputs:
+  - name: webhook_id
+    value_type: text
+  - name: subscription_id
+    value_type: text
+  - name: status
+    value_type: text
+  - name: callback_setup
+    value_type: object
+  error_codes: *id001
+- operation_id: get_webhook_status
+  display_name: Get webhook status
+  operation_kind: action
+  workflow_visible: false
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs: []
+  outputs:
+  - name: status
+    value_type: text
+  - name: callback_setup
+    value_type: object
+  error_codes: *id001
+- operation_id: remove_webhook
+  display_name: Remove webhook
+  operation_kind: action
+  workflow_visible: false
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs: []
+  outputs:
+  - name: status
+    value_type: text
+  - name: callback_setup
+    value_type: object
+  error_codes: *id001
+- operation_id: receive_event
+  display_name: Receive event
+  operation_kind: action
+  workflow_visible: false
+  category: social
+  connection_type_ids:
+  - x_account
+  inputs:
+  - name: callback
+    value_type: object
+    required: true
+  - name: request
+    value_type: object
+    required: true
+  outputs:
+  - name: status
+    value_type: text
+  error_codes: *id001

@@ -1,0 +1,265 @@
+workflow_id: x_publish_article
+version: 1.0.0
+display_name: X publish article
+description: Configure project connection/model mappings from SETUP.md before enabling.
+  Human-reviewed sending by default.
+enabled: false
+trigger:
+  confidence_threshold: 0.0
+settings:
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: draft_announcement
+    edges:
+    - source:
+        kind: step
+        id: draft_announcement
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: validate_announcement
+      rework: false
+    - source:
+        kind: step
+        id: validate_announcement
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: check_valid
+      rework: false
+    - source:
+        kind: step
+        id: check_valid
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: init_media
+      rework: false
+    - source:
+        kind: step
+        id: check_valid
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: prepare_cover
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: upload_cover
+      rework: false
+    - source:
+        kind: step
+        id: upload_cover
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: review
+      rework: false
+    - source:
+        kind: step
+        id: review
+      outcome:
+        name: approved
+      target:
+        kind: step
+        id: publish
+      rework: false
+    - source:
+        kind: step
+        id: review
+      outcome:
+        name: rejected
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: publish
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: init_media
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: has_cover
+      rework: false
+    - source:
+        kind: step
+        id: has_cover
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: prepare_cover
+      rework: false
+    - source:
+        kind: step
+        id: has_cover
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: review
+      rework: false
+  callable:
+    enabled: true
+    trigger_channels:
+    - ui
+    - api
+    - mcp
+    - webhook
+    input_mode: fields
+    strict_inputs: false
+    expected_inputs:
+    - name: title
+      type: string
+      required: true
+    - name: content
+      type: paragraph
+      required: false
+    - name: excerpt
+      type: paragraph
+      required: false
+    - name: canonical_url
+      type: string
+      required: true
+    - name: image_artifact_handle
+      type: string
+      required: false
+    - name: alt_text
+      type: string
+      required: false
+    output_mode: variables
+    expected_outputs:
+    - name: published_post
+      type: object
+      required: false
+    expected_artifacts: []
+    side_effects:
+    - X API post publication
+steps:
+- step_id: draft_announcement
+  display_name: Draft article announcement
+  step_kind: agent
+  agent_id: x_article_writer
+  skill_id: x_article_announcement
+  input_mapping_jsonb:
+    title: state.inputs.title
+    content: state.inputs.content
+    excerpt: state.inputs.excerpt
+    canonical_url: state.inputs.canonical_url
+  output_mapping_jsonb:
+    announcement_text: state.announcement_text
+- step_id: validate_announcement
+  display_name: Validate announcement
+  step_kind: connector
+  connector_id: flowsteward.x.validate_post
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: validate_post
+  input_mapping_jsonb:
+    text: state.announcement_text
+    canonical_url: state.inputs.canonical_url
+  output_mapping_jsonb:
+    text: state.validated_text
+    valid: state.post_valid
+- step_id: check_valid
+  display_name: Valid ordinary post?
+  step_kind: if
+  override:
+    if:
+      condition:
+        selector: state.post_valid
+        operator: truthy
+- step_id: init_media
+  display_name: Default to text and link
+  step_kind: set_variable
+  override:
+    set_variable:
+      assignments:
+        state.media_ids: []
+- step_id: has_cover
+  display_name: Article has a cover?
+  step_kind: if
+  override:
+    if:
+      condition:
+        selector: state.inputs.image_artifact_handle
+        operator: truthy
+- step_id: prepare_cover
+  display_name: Prepare cover
+  step_kind: connector
+  connector_id: flowsteward.x.prepare_image
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: prepare_image
+  input_mapping_jsonb:
+    artifact_handle: state.inputs.image_artifact_handle
+  output_mapping_jsonb:
+    image_artifact_handle: state.prepared_image
+- step_id: upload_cover
+  display_name: Upload cover
+  step_kind: connector
+  connector_id: flowsteward.x.upload_media
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: upload_media
+  connection_binding_jsonb:
+    connection_id: x_account
+  input_mapping_jsonb:
+    artifact_handle: state.prepared_image
+    alt_text: state.inputs.alt_text
+  output_mapping_jsonb:
+    media_ids: state.media_ids
+- step_id: review
+  display_name: Review announcement before publication
+  step_kind: approval
+  override:
+    approval: {}
+- step_id: publish
+  display_name: Publish
+  step_kind: connector
+  connector_id: flowsteward.x.publish_post
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: publish_post
+  connection_binding_jsonb:
+    connection_id: x_account
+  input_mapping_jsonb:
+    text: state.validated_text
+    media_ids: state.media_ids
+  output_mapping_jsonb:
+    post_id: state.published_post.post_id
+    url: state.published_post.url
+    text: state.published_post.text
+- step_id: done
+  display_name: Done
+  step_kind: stop_success
+  override:
+    stop_success:
+      message: Reviewed X workflow completed.
+groups: []

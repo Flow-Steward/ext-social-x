@@ -1,0 +1,251 @@
+workflow_id: x_review_comment
+version: 1.0.0
+display_name: X review comment
+description: Configure project connection/model mappings from SETUP.md before enabling.
+  Human-reviewed sending by default.
+enabled: false
+trigger:
+  confidence_threshold: 0.0
+settings:
+  execution_graph:
+    schema_version: 1
+    entry:
+      kind: step
+      id: check_opt_out
+    edges:
+    - source:
+        kind: step
+        id: check_opt_out
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: check_opt_out
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: reply_policy
+      rework: false
+    - source:
+        kind: step
+        id: reply_policy
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: read_parent
+      rework: false
+    - source:
+        kind: step
+        id: reply_policy
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: read_parent
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: draft_reply
+      rework: false
+    - source:
+        kind: step
+        id: draft_reply
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: validate_reply
+      rework: false
+    - source:
+        kind: step
+        id: validate_reply
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: check_valid
+      rework: false
+    - source:
+        kind: step
+        id: check_valid
+      outcome:
+        name: 'true'
+      target:
+        kind: step
+        id: review
+      rework: false
+    - source:
+        kind: step
+        id: check_valid
+      outcome:
+        name: 'false'
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: review
+      outcome:
+        name: approved
+      target:
+        kind: step
+        id: send_reply
+      rework: false
+    - source:
+        kind: step
+        id: review
+      outcome:
+        name: rejected
+      target:
+        kind: step
+        id: done
+      rework: false
+    - source:
+        kind: step
+        id: send_reply
+      outcome:
+        name: success
+      target:
+        kind: step
+        id: done
+      rework: false
+  callable:
+    enabled: true
+    trigger_channels:
+    - ui
+    - api
+    - mcp
+    - webhook
+    input_mode: fields
+    strict_inputs: false
+    expected_inputs:
+    - name: comment_id
+      type: string
+      required: true
+    - name: comment_text
+      type: paragraph
+      required: false
+    - name: parent_post_id
+      type: string
+      required: true
+    - name: connection_id
+      type: string
+      required: true
+    - name: reply_allowed
+      type: boolean
+      required: false
+    - name: opted_out
+      type: boolean
+      required: false
+    output_mode: variables
+    expected_outputs:
+    - name: published_post
+      type: object
+      required: false
+    expected_artifacts: []
+    side_effects:
+    - X API post publication
+steps:
+- step_id: check_opt_out
+  display_name: Opt-out or prohibited author?
+  step_kind: if
+  override:
+    if:
+      condition:
+        selector: state.inputs.opted_out
+        operator: truthy
+- step_id: reply_policy
+  display_name: Workflow chooses to consider a reply
+  step_kind: if
+  override:
+    if:
+      condition:
+        selector: state.inputs.reply_allowed
+        operator: truthy
+- step_id: read_parent
+  display_name: Read parent
+  step_kind: connector
+  connector_id: flowsteward.x.get_post
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: get_post
+  connection_binding_jsonb:
+    connection_id: x_account
+  input_mapping_jsonb:
+    post_id: state.inputs.parent_post_id
+  output_mapping_jsonb:
+    post: state.parent_post
+- step_id: draft_reply
+  display_name: Draft answer from available context
+  step_kind: agent
+  agent_id: x_reply_writer
+  skill_id: x_comment_reply
+  input_mapping_jsonb:
+    comment_text: state.inputs.comment_text
+    parent_post: state.parent_post
+  output_mapping_jsonb:
+    reply_text: state.reply_text
+- step_id: validate_reply
+  display_name: Validate reply
+  step_kind: connector
+  connector_id: flowsteward.x.validate_post
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: validate_post
+  input_mapping_jsonb:
+    text: state.reply_text
+  output_mapping_jsonb:
+    text: state.validated_reply
+    valid: state.reply_valid
+- step_id: check_valid
+  display_name: Valid reply?
+  step_kind: if
+  override:
+    if:
+      condition:
+        selector: state.reply_valid
+        operator: truthy
+- step_id: review
+  display_name: Human review and opt-out recheck
+  step_kind: approval
+  override:
+    approval: {}
+- step_id: send_reply
+  display_name: Send reply
+  step_kind: connector
+  connector_id: flowsteward.x.reply_to_post
+  override:
+    connector:
+      extension_id: flowsteward.x
+      action_id: reply_to_post
+  connection_binding_jsonb:
+    connection_id: x_account
+  input_mapping_jsonb:
+    reply_to_post_id: state.inputs.comment_id
+    text: state.validated_reply
+    automated: literal:false
+  output_mapping_jsonb:
+    post_id: state.published_post.post_id
+    url: state.published_post.url
+    text: state.published_post.text
+- step_id: done
+  display_name: Done
+  step_kind: stop_success
+  override:
+    stop_success:
+      message: Reviewed X workflow completed.
+groups: []

@@ -1,0 +1,256 @@
+actions:
+- action_id: validate_post
+  title: Validate post
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: false
+  workflow_visible: true
+  parameters:
+  - name: text
+    type: string
+    required: true
+  - name: canonical_url
+    type: string
+    required: false
+  result_fields:
+  - text
+  - weighted_length
+  - valid
+  - errors
+  error_codes: &id001
+  - invalid_host_envelope
+  - invalid_payload
+  - invalid_connection
+  - invalid_post
+  - invalid_image
+  - unsupported_image
+  - input_too_large
+  - image_too_large
+  - artifact_access_failed
+  - authorization_required
+  - forbidden
+  - credits_required
+  - rate_limited
+  - not_found
+  - provider_unavailable
+  - response_too_large
+  - timeout_unknown
+  - webhook_not_ready
+  - not_configured
+  - internal_error
+- action_id: prepare_image
+  title: Prepare image
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: false
+  workflow_visible: true
+  parameters:
+  - name: artifact_handle
+    type: artifact_handle
+    required: true
+  result_fields:
+  - image_artifact_handle
+  - mime_type
+  - width
+  - height
+  - size_bytes
+  error_codes: *id001
+- action_id: upload_media
+  title: Upload media
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: true
+  workflow_visible: true
+  parameters:
+  - name: connection_ref
+    type: connection_ref
+    required: true
+  - name: artifact_handle
+    type: artifact_handle
+    required: true
+  - name: alt_text
+    type: string
+    required: false
+  result_fields:
+  - media_id
+  - expires_after_secs
+  - media_ids
+  error_codes: *id001
+  command_type: invoke_extension_action
+  test_mode_behavior: suppress
+- action_id: publish_post
+  title: Publish post
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: true
+  workflow_visible: true
+  parameters:
+  - name: connection_ref
+    type: connection_ref
+    required: true
+  - name: text
+    type: string
+    required: true
+  - name: canonical_url
+    type: string
+    required: false
+  - name: media_ids
+    type: array
+    required: false
+  result_fields:
+  - post_id
+  - url
+  - text
+  error_codes: *id001
+  command_type: invoke_extension_action
+  test_mode_behavior: suppress
+- action_id: get_post
+  title: Get post
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: false
+  workflow_visible: true
+  parameters:
+  - name: connection_ref
+    type: connection_ref
+    required: true
+  - name: post_id
+    type: string
+    required: true
+  result_fields:
+  - post
+  error_codes: *id001
+- action_id: reply_to_post
+  title: Reply to post
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: true
+  workflow_visible: true
+  parameters:
+  - name: connection_ref
+    type: connection_ref
+    required: true
+  - name: reply_to_post_id
+    type: string
+    required: true
+  - name: text
+    type: string
+    required: true
+  - name: media_ids
+    type: array
+    required: false
+  - name: automated
+    type: boolean
+    required: false
+  result_fields:
+  - post_id
+  - url
+  - text
+  error_codes: *id001
+  command_type: invoke_extension_action
+  test_mode_behavior: suppress
+- action_id: verify_identity
+  title: Verify identity
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: false
+  workflow_visible: false
+  parameters: []
+  result_fields:
+  - subject
+  - verified_display_name
+  - safe_metadata
+  - health
+  error_codes: *id001
+- action_id: configure_webhook
+  title: Configure webhook
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+    config:
+      runtime_resources:
+        provider_secrets:
+        - app_bearer_token
+  mutates_platform: true
+  workflow_visible: false
+  parameters:
+  - name: callback_url
+    type: string
+    required: true
+  result_fields:
+  - webhook_id
+  - subscription_id
+  - status
+  - callback_setup
+  error_codes: *id001
+  command_type: invoke_extension_action
+  test_mode_behavior: suppress
+- action_id: get_webhook_status
+  title: Get webhook status
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+    config:
+      runtime_resources:
+        provider_secrets:
+        - app_bearer_token
+  mutates_platform: false
+  workflow_visible: false
+  parameters: []
+  result_fields:
+  - status
+  - callback_setup
+  error_codes: *id001
+- action_id: remove_webhook
+  title: Remove webhook
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+    config:
+      runtime_resources:
+        provider_secrets:
+        - app_bearer_token
+  mutates_platform: true
+  workflow_visible: false
+  parameters: []
+  result_fields:
+  - status
+  - callback_setup
+  error_codes: *id001
+  command_type: invoke_extension_action
+  test_mode_behavior: suppress
+- action_id: receive_event
+  title: Receive event
+  required_scopes:
+  - extension:invoke
+  handler:
+    mode: extension
+  mutates_platform: false
+  workflow_visible: false
+  parameters:
+  - name: callback
+    type: object
+    required: true
+  - name: request
+    type: object
+    required: true
+  result_fields:
+  - status
+  error_codes: *id001

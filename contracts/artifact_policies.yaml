@@ -1,0 +1,26 @@
+policies:
+- operation_id: prepare_image
+  inputs:
+  - kind: artifact
+    value_type: artifact_handle
+    binding_key: source_image
+    field: artifact_handle
+    required: true
+    max_size_bytes: 20971520
+  outputs:
+  - kind: artifact
+    value_type: artifact_handle
+    binding_key: image_artifact_handle
+    filename: x-announcement.jpg
+    content_type: image/jpeg
+    max_size_bytes: 5000000
+    retention_class: run_window
+- operation_id: upload_media
+  inputs:
+  - kind: artifact
+    value_type: artifact_handle
+    binding_key: source_image
+    field: artifact_handle
+    required: true
+    max_size_bytes: 5000000
+  outputs: []

@@ -1,0 +1,44 @@
+connection_types:
+- connection_type_id: x_account
+  display_name: X account
+  description: One verified X account; app bearer token must belong to the same X
+    app.
+  auth:
+    type: oauth2
+    provider_id: x_oauth
+    scopes:
+      required:
+      - tweet.read
+      - tweet.write
+      - users.read
+      - media.write
+      - offline.access
+      optional: []
+  config_schema:
+    type: object
+    additionalProperties: false
+    properties:
+      automated_replies_enabled:
+        type: boolean
+        default: false
+      x_ai_reply_permission_confirmed:
+        type: boolean
+        default: false
+      owner_auto_reply_consent:
+        type: boolean
+        default: false
+  secret_schema:
+    type: object
+    additionalProperties: false
+    properties:
+      access_token:
+        type: string
+      app_bearer_token:
+        type: string
+  capabilities:
+  - reply_to_post
+  - validate_post
+  - get_post
+  - upload_media
+  - publish_post
+  - prepare_image

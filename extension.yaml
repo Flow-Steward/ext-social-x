@@ -1,0 +1,200 @@
+manifest_version: 2
+lifecycle:
+  data_schema_version: 1
+  data_migrations: []
+extension_id: flowsteward.x
+kind: tool_provider
+version: 1.0.0
+display_name: X
+description: Publish article announcements and receive direct replies on every post
+  of a connected X account.
+vendor:
+  name: Flow Steward
+listing:
+  category: social
+  tags:
+  - x
+  - twitter
+  - publishing
+  - comments
+  summary: Official X API publishing, images and verified account-wide direct reply
+    events.
+features:
+- tool
+- action
+- query
+- workflow_trigger
+required_scopes:
+- extension:invoke
+- event:subscribe
+- artifact:read
+- artifact:write
+egress:
+  hosts:
+  - api.x.com
+schemas:
+  config: schemas/config.schema.yaml
+  secrets: schemas/secrets.schema.yaml
+  subscriptions: schemas/subscriptions.schema.yaml
+account_scope:
+  scope_type: project
+  description: One connection per authorized X account in a project.
+runtime_grants:
+  resources:
+    project_connection: {}
+    provider_secrets:
+      secret_keys:
+      - app_bearer_token
+external_effects:
+- operation_id: publish_post
+  effect_kind: social_post_create
+  channel: x
+  idempotency: required
+  test_mode_behavior: suppress
+- operation_id: reply_to_post
+  effect_kind: social_post_create
+  channel: x
+  idempotency: required
+  test_mode_behavior: suppress
+  business_key_field: reply_to_post_id
+- operation_id: upload_media
+  effect_kind: media_upload
+  channel: x
+  idempotency: required
+  test_mode_behavior: suppress
+project_state:
+  reads:
+  - namespace: x_webhook
+    state_key: registration
+  writes:
+  - namespace: x_webhook
+    state_key: registration
+event_subscriptions:
+- event_type: x.comment.received
+  severity: any
+  conditions: {}
+workflow_triggers:
+- trigger_type_id: x_comment_received
+  provider_key: flowsteward.x
+  display_name: X comment received
+  description: New direct reply to any post by the selected X account.
+  event_name: x.comment.received
+  provider_ingress_url_required: true
+  config_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - connection_id
+    properties:
+      connection_id:
+        type: string
+  ui_schema:
+    fields: []
+callbacks:
+- callback_id: oauth_authorization
+  purpose: oauth_authorization
+  methods:
+  - GET
+  connection_scoped: false
+- callback_id: events
+  purpose: inbound_events
+  methods:
+  - GET
+  - POST
+  action_id: receive_event
+  connection_scoped: true
+  auth:
+    type: hmac_sha256_body
+    signature_header: X-Twitter-Webhooks-Signature-OAuth2
+    digest_encoding: base64
+    signature_prefix: sha256=
+    key_source:
+      type: oauth_client_secret
+      provider_id: x_oauth
+      field_id: client_secret
+    challenge:
+      query_parameter: crc_token
+      response_field: response_token
+  setup:
+    configure_action_id: configure_webhook
+    status_action_id: get_webhook_status
+    remove_action_id: remove_webhook
+entrypoint:
+  mode: subprocess
+  command:
+  - python3
+  - main.py
+  timeout_seconds: 120
+health:
+  command:
+  - python3
+  - health.py
+  timeout_seconds: 5
+ui_manifest: ui/ui_manifest.yaml
+action_manifest: ui/actions/actions.yaml
+query_manifest: ui/queries/queries.yaml
+runtime:
+  contract_version: extension_host_v2
+  extension_contract_v2:
+    oauth_providers:
+    - provider_id: x_oauth
+      display_name: X OAuth 2.0
+      description: User authorization with PKCE; client secret remains with Core.
+      setup_page_id: setup
+      help_page_id: setup
+      flow:
+        type: authorization_code
+        pkce: s256
+      credential_fields:
+      - field_id: client_id
+        value_type: text
+        required: true
+        secret: false
+        browser_exposable: true
+        change_policy: reauthorization_required
+        label: X Client ID
+        validation:
+          min_length: 1
+          max_length: 512
+        help_text: Enter the matching confidential X OAuth application client id.
+        autocomplete: username
+      - field_id: client_secret
+        value_type: secret
+        required: true
+        secret: true
+        change_policy: runtime_revalidate
+        label: X Client secret
+        validation:
+          min_length: 1
+          max_length: 4096
+        help_text: Enter the matching confidential X OAuth application client secret.
+        autocomplete: current-password
+      authorization_endpoint:
+        url: https://x.com/i/oauth2/authorize
+      token_endpoint:
+        url: https://api.x.com/2/oauth2/token
+        client_auth_method: client_secret_basic
+      callback_id: oauth_authorization
+      post_connect_action_id: verify_identity
+      authorization_intents:
+      - intent_id: x_connect
+        static_parameters: {}
+        user_inputs: []
+    connection_types: contracts/connection_types.yaml
+    operation_manifest: contracts/operation_manifest.yaml
+    step_ui_manifest: contracts/step_ui_manifest.yaml
+    artifact_policies: contracts/artifact_policies.yaml
+python_requirements:
+- name: pillow
+  version: 13.0.0
+  hashes:
+  - sha256:42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca
+  - sha256:8bf295fe459343bc6093c8e5e0df60bfa189e0fcb775a22e2c2488fdeccc6c0d
+- name: setuptools
+  version: 80.9.0
+  hashes:
+  - sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922
+- name: twitter-text-parser
+  version: 3.0.0
+  hashes:
+  - sha256:b36bd22e147db2234e79c73b021f10c3073e8c54f22b68c31696239b6917cdd3

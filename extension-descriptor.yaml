@@ -1,0 +1,63 @@
+schema_version: extension_descriptor_v1
+extension_id: flowsteward.x
+release_version: 1.0.0
+extension_type: service_extension
+identity:
+  display_name: X
+  description: Publish article announcements and receive direct replies on every post
+    of a connected X account.
+  tags:
+  - x
+  - social
+vendor:
+  vendor_name: Flow Steward
+listing:
+  visibility: private_reference
+  category: social
+distribution:
+  channel: private_byo
+  execution_modes:
+  - local
+  allows_self_hosted: true
+  requires_connected_control_plane: false
+  import_sources:
+  - file
+runtime:
+  contract_version: extension_host_v2
+  compatibility:
+    platform_min: 1.0.0
+  extension_contract_v2:
+    connection_types: contracts/connection_types.yaml
+    operation_manifest: contracts/operation_manifest.yaml
+    step_ui_manifest: contracts/step_ui_manifest.yaml
+    artifact_policies: contracts/artifact_policies.yaml
+artifacts:
+  extensions:
+  - extension_id: flowsteward.x
+    ref: extension.yaml
+    publish: true
+  workflows:
+  - workflow_id: x_publish_article
+    ref: artifacts/workflows/x_publish_article.yaml
+    publish: true
+  - workflow_id: x_review_comment
+    ref: artifacts/workflows/x_review_comment.yaml
+    publish: true
+  agents:
+  - agent_id: x_article_writer
+    ref: artifacts/agents/x_article_writer.yaml
+    publish: true
+  - agent_id: x_reply_writer
+    ref: artifacts/agents/x_reply_writer.yaml
+    publish: true
+  skills:
+  - skill_id: x_article_announcement
+    ref: artifacts/skills/x_article_announcement.yaml
+    publish: true
+  - skill_id: x_comment_reply
+    ref: artifacts/skills/x_comment_reply.yaml
+    publish: true
+provenance:
+  origin: user_generated
+commerce:
+  billing_mode: free

@@ -1,0 +1,18 @@
+skill_id: x_article_announcement
+version: 1.0.0
+display_name: X article announcement
+description: Write an accurate short teaser using only supplied published article
+  data. Do not invent claims. Exclude the canonical URL because the following validator
+  appends it intact. Return announcement_text within ordinary X 280 weighted characters
+  including room for the URL.
+enabled: true
+category: social
+instructions:
+- Write an accurate short teaser using only supplied published article data. Do not
+  invent claims. Exclude the canonical URL because the following validator appends
+  it intact. Return announcement_text within ordinary X 280 weighted characters including
+  room for the URL.
+expected_outputs:
+- name: announcement_text
+  type: text
+  required: true

@@ -1,0 +1,72 @@
+forms:
+- operation_id: validate_post
+  title: Validate post
+  fields:
+  - name: text
+    widget_type: textarea
+    label: Text
+    required: true
+  - name: canonical_url
+    widget_type: text
+    label: Canonical url
+    required: false
+- operation_id: prepare_image
+  title: Prepare image
+  fields:
+  - name: artifact_handle
+    widget_type: artifact_picker
+    label: Artifact handle
+    required: true
+- operation_id: upload_media
+  title: Upload media
+  fields:
+  - name: artifact_handle
+    widget_type: artifact_picker
+    label: Artifact handle
+    required: true
+  - name: alt_text
+    widget_type: text
+    label: Alt text
+    required: false
+- operation_id: publish_post
+  title: Publish post
+  fields:
+  - name: text
+    widget_type: textarea
+    label: Text
+    required: true
+  - name: canonical_url
+    widget_type: text
+    label: Canonical url
+    required: false
+  - name: media_ids
+    widget_type: json
+    label: Media ids
+    required: false
+- operation_id: get_post
+  title: Get post
+  fields:
+  - name: post_id
+    widget_type: text
+    label: Post id
+    required: true
+- operation_id: reply_to_post
+  title: Reply to post
+  fields:
+  - name: reply_to_post_id
+    widget_type: text
+    label: Reply to post id
+    required: true
+  - name: text
+    widget_type: textarea
+    label: Text
+    required: true
+  - name: media_ids
+    widget_type: json
+    label: Media ids
+    required: false
+  - name: automated
+    widget_type: boolean
+    label: Automated
+    required: false
+    default: false
