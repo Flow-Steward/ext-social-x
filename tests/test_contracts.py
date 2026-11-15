@@ -26,6 +26,28 @@ def test_visible_actions_have_identical_v2_ids():
     }
 
 
+def test_artifact_descriptor_inherits_complete_executable_oauth_contract():
+    descriptor = load("extension-descriptor.yaml")
+    manifest = load("extension.yaml")
+    assert descriptor["runtime"].get("extension_contract_v2") is None
+    assert descriptor.get("extension_contract_v2") is None
+    assert descriptor["artifacts"]["extensions"] == [
+        {"extension_id": "flowsteward.x", "ref": "extension.yaml", "publish": True}
+    ]
+    provider = manifest["runtime"]["extension_contract_v2"]["oauth_providers"][0]
+    connection = load("contracts/connection_types.yaml")["connection_types"][0]
+    assert provider["provider_id"] == connection["auth"]["provider_id"] == "x_oauth"
+    assert any(
+        callback["callback_id"] == provider["callback_id"]
+        and callback["purpose"] == "oauth_authorization"
+        for callback in manifest["callbacks"]
+    )
+    assert any(
+        action["action_id"] == provider["post_connect_action_id"]
+        for action in load("ui/actions/actions.yaml")["actions"]
+    )
+
+
 def test_identity_version_callbacks_and_supported_effect_contract():
     manifest = load("extension.yaml")
     descriptor = load("extension-descriptor.yaml")

@@ -26,11 +26,6 @@ runtime:
   contract_version: extension_host_v2
   compatibility:
     platform_min: 1.9.0
-  extension_contract_v2:
-    connection_types: contracts/connection_types.yaml
-    operation_manifest: contracts/operation_manifest.yaml
-    step_ui_manifest: contracts/step_ui_manifest.yaml
-    artifact_policies: contracts/artifact_policies.yaml
 artifacts:
   extensions:
   - extension_id: flowsteward.x
