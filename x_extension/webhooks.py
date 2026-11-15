@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .client import XClient, XError
+from .errors import error_payload
 from .events import numeric_id, verified_subject
 from .remote_receipts import confirmed_deletion
 from .webhook_state import state_from_target as state_from_target
@@ -114,7 +115,10 @@ def configure(options: dict, connection: dict, state: dict, user: XClient, app: 
         exc.effect_possible = exc.effect_possible or effect_possible
         state["status"] = "unknown" if exc.unknown else "setup_failed"
         if exc.effect_possible or state.get("webhook_id") or state.get("subscription_id"):
-            return state_response(state, error={"code": exc.code, "message": str(exc)})
+            return state_response(
+                state,
+                error=error_payload(exc.code, str(exc), unknown=exc.unknown),
+            )
         raise
 
 
@@ -153,4 +157,7 @@ def remove(state: dict, user: XClient, app: XClient) -> dict:
     except XError as exc:
         exc.effect_possible = exc.effect_possible or effect_possible
         state["status"] = "unknown" if exc.unknown else "remove_failed"
-        return state_response(state, error={"code": exc.code, "message": str(exc)})
+        return state_response(
+            state,
+            error=error_payload(exc.code, str(exc), unknown=exc.unknown),
+        )

@@ -213,7 +213,8 @@ def test_saved_webhook_id_cannot_be_replaced_by_other_id_with_same_url(monkeypat
     assert result["project_state_updates"][0]["value"]["webhook_id"] == "700"
 
 
-def test_http_request_timeout_is_ambiguous_not_a_definitive_rejection(monkeypatch):
+@pytest.mark.parametrize("status", [408, 503])
+def test_http_request_timeout_is_ambiguous_not_a_definitive_rejection(monkeypatch, status):
     import io
     from urllib.error import HTTPError
 
@@ -222,7 +223,7 @@ def test_http_request_timeout_is_ambiguous_not_a_definitive_rejection(monkeypatc
         Mock(
             side_effect=[
                 io.BytesIO(b'{"data":[]}'),
-                HTTPError("https://api.x.com/2/webhooks", 408, "timeout", {}, None),
+                HTTPError("https://api.x.com/2/webhooks", status, "unresolved", {}, None),
             ]
         ),
     )
@@ -231,6 +232,55 @@ def test_http_request_timeout_is_ambiguous_not_a_definitive_rejection(monkeypatc
     assert result["result"]["status"] == "unknown"
     assert result["result"]["configured"] is False
     assert result["result"]["error"]["code"] == "timeout_unknown"
+
+
+@pytest.mark.parametrize("status", [408, 503])
+def test_ambiguous_delete_retains_owned_ids_and_reports_unknown_code(monkeypatch, status):
+    from urllib.error import HTTPError
+
+    transport = Mock(
+        side_effect=HTTPError(
+            "https://api.x.com/2/activity/subscriptions/800", status, "unresolved", {}, None
+        )
+    )
+    monkeypatch.setattr("x_extension.client.open_pinned_url", transport)
+    result = dispatch(
+        setup_invocation(
+            "remove_webhook",
+            state={"account_user_id": "123", "webhook_id": "700", "subscription_id": "800"},
+        )
+    )
+    assert result["result"]["status"] == "unknown"
+    assert result["result"]["configured"] is False
+    assert result["result"]["error"]["code"] == "timeout_unknown"
+    saved = result["project_state_updates"][0]["value"]
+    assert saved["webhook_id"] == "700" and saved["subscription_id"] == "800"
+    assert transport.call_count == 1
+    assert transport.call_args.args[0].get_method() == "DELETE"
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "unknown"),
+    [
+        (408, "timeout_unknown", True),
+        (503, "timeout_unknown", True),
+        (401, "authorization_required", False),
+        (429, "rate_limited", False),
+    ],
+)
+def test_publish_failure_uses_common_safe_error_projection(monkeypatch, status, code, unknown):
+    from urllib.error import HTTPError
+
+    transport = Mock(
+        side_effect=HTTPError("https://api.x.com/2/tweets", status, "failed", {}, None)
+    )
+    monkeypatch.setattr("x_extension.client.open_pinned_url", transport)
+    result = dispatch(setup_invocation("publish_post", text="Hello"))
+    assert result["ok"] is False
+    assert result["error_code"] == result["errors"][0]["code"] == code
+    assert result["external_effect_status"] == ("timeout_unknown" if unknown else "failed")
+    assert result["definitely_no_external_effect"] is (not unknown)
+    assert transport.call_count == 1
 
 
 @pytest.mark.parametrize(

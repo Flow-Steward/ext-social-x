@@ -11,7 +11,7 @@ from x_extension.client import XClient, XError
 
 
 def envelope(operation="validate_post", **inputs):
-    payload = {
+    return {
         "contract_version": "extension_host_v2",
         "mode": "action",
         "runtime_context": {
@@ -34,7 +34,6 @@ def envelope(operation="validate_post", **inputs):
             },
         },
     }
-    return payload
 
 
 @pytest.mark.parametrize(

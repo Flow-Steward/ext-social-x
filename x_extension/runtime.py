@@ -135,7 +135,7 @@ def dispatch(payload: dict) -> dict:
         raise XError("invalid_payload", "Unknown X operation.")
     except XError as exc:
         return failure(
-            "timeout_unknown" if exc.unknown else exc.code,
+            exc.code,
             str(exc),
             unknown=exc.unknown,
             **({"retry_after_seconds": exc.retry_after} if exc.retry_after else {}),
