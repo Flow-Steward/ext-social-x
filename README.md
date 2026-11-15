@@ -1,9 +1,7 @@
 # X extension 1.0.0
 
 SDK-only `flowsteward.x`, Python 3.12, `extension_host_v2`, platform API minimum
-`1.9.0` (distinct from product release `0.9.18`). **Release blocked:** callback
-ADR 0072 authoring fields are confirmed, but the required host implementation,
-release integration and verification remain pending. Central `289205a8` alone does not support this profile. The official X API
+`1.9.0` (distinct from product release `0.9.18`). The official X API
 publishes announcements with one static image and an intact article link, and
 receives new direct replies to **every post of the selected account**, including
 old posts and posts published outside Flow Steward. Historical comments,
@@ -164,9 +162,11 @@ pinned in `requirements.in` and `extension.yaml` with wheel hashes. `wheels/`
 contains a universal twitter-text-parser wheel and separate CPython 3.12 Pillow
 wheels for Linux AMD64 and ARM64. `dev-wheels/` contains the public SDK wheel;
 Core provides the SDK in installed runtime. Packaging is not live X acceptance.
-This adaptation has not been tested, statically checked or packaged; previous
-candidate evidence does not validate these changes. Verification requires a
-separately authorized run against the integrated ADR 0072 host.
+The article and reply workflow paths have been checked through HTTP admission,
+RabbitMQ, the production worker and approval/resume using a mocked X API and a
+test model. This is integration-test coverage, not live X acceptance or evidence
+that an account has the required provider permissions. Run the scoped checks
+for new source changes; release publication remains a separate coordinated step.
 
 Live acceptance needs a real X app, credits, public HTTPS and account access:
 OAuth → CRC/registration → publish with image/link → external direct comment on

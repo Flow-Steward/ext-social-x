@@ -47,10 +47,10 @@ App bearer storage uses the existing authenticated host endpoint
 Use the host's secret administration UI or an authenticated API client. Do not
 commit or save a request containing the real value in this bundle.
 
-This candidate requires platform API `1.9.0`, including the final ADR 0072
-callback profile. The authoring field shape is confirmed; release remains blocked
-until the host implementation is integrated and verified. Product version `0.9.18`
-is a separate version.
+This package requires platform API `1.9.0`, including the ADR 0072 callback
+profile. Product version `0.9.18` is a separate version. Complete the connection,
+model and policy mappings before enabling the disabled templates; installing a
+compatible package does not itself authorize a live send.
 
 On the X connection, save `webhook_signing_secret` with the matching X app's
 **OAuth2 client secret**. This is the key for

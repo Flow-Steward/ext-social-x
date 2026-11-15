@@ -4,8 +4,14 @@ release_version: 1.0.0
 extension_type: service_extension
 identity:
   display_name: X
-  description: Publish article announcements and receive direct replies on every post
-    of a connected X account.
+  description: |-
+    Connect an X account to Flow Steward workflows to share published blog posts and manage direct replies. Publish an announcement with an intact article link and one static image. Validate ordinary 280-character weighted text, prepare a 1200x675 JPEG cover, upload media with optional alt text, read a post and send a reviewed reply.
+
+    Incoming events cover new direct replies to posts authored by the connected account, including posts published outside Flow Steward. Use workflow conditions to filter comments, apply opt-out rules and decide whether to respond. The package includes disabled article-announcement and comment-reply templates with human review before sending by default.
+
+    Set up an X OAuth application, connect the account and arrange the required X API access. Incoming replies also need the same application's webhook credentials and a public HTTPS callback. To generate drafts, select a verified model for the included agents and map the project connection before enabling the templates.
+
+    This release supports ordinary posts with at most one static image. It does not provide direct messages, historical comment import, deeper user-to-user reply threads, video or GIF uploads, multi-post threads, or a WordPress editor plugin. X API access and model usage are separate services. Automatic AI replies remain disabled until the required X approval, account-owner consent and opt-out controls are in place.
   tags:
   - x
   - social
@@ -13,7 +19,10 @@ vendor:
   vendor_name: Flow Steward
 listing:
   visibility: private_reference
-  category: social
+  category: marketing
+  summary: Publish article announcements on X and handle direct replies in reviewed workflows.
+  setup_summary: >-
+    Configure an X OAuth app and connect your account. For incoming replies, add the app credentials and a public HTTPS callback; select a verified model and map the disabled workflow templates before enabling them.
 distribution:
   channel: private_byo
   execution_modes:

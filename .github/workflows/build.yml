@@ -1,0 +1,11 @@
+name: Validate X extension candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: Flow-Steward/extensions/.github/workflows/build-extension.yml@1f695921b967f1ba734d13e332db3d9487f73201

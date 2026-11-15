@@ -6,7 +6,7 @@ description: Write an accurate short teaser using only supplied published articl
   appends it intact. Return announcement_text within ordinary X 280 weighted characters
   including room for the URL.
 enabled: true
-category: social
+category: marketing
 instructions:
 - Write an accurate short teaser using only supplied published article data. Do not
   invent claims. Exclude the canonical URL because the following validator appends

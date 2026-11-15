@@ -1,0 +1,20 @@
+name: Publish approved X extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Approved immutable tag matching extension.yaml; wait for the coordinated release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: Flow-Steward/extensions/.github/workflows/release-extension.yml@1f695921b967f1ba734d13e332db3d9487f73201
+    with:
+      tag: ${{ inputs.tag }}

@@ -3,6 +3,7 @@ version: 1.0.0
 display_name: X article writer
 description: Configure an explicit verified model on import before enabling this agent.
 enabled: false
+category: marketing
 role_type: content_writer
 base_skill: x_article_announcement
 tools: []

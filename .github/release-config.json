@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "extension_id": "flowsteward.x",
+  "runtime_targets": [
+    ""
+  ],
+  "test_requirements": [
+    "requirements-dev.txt"
+  ],
+  "test_paths": [
+    "tests"
+  ],
+  "additional_assets": []
+}
