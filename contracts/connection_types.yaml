@@ -33,8 +33,10 @@ connection_types:
     properties:
       access_token:
         type: string
-      app_bearer_token:
+      webhook_signing_secret:
         type: string
+        title: X OAuth2 webhook signing secret
+        minLength: 1
   capabilities:
   - reply_to_post
   - validate_post

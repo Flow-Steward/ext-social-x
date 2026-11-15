@@ -3,7 +3,7 @@
 from unittest.mock import Mock
 
 import pytest
-from test_setup_receipts import URL, setup_invocation
+from test_manual_setup import URL, setup_invocation
 
 from x_extension.client import XClient, XError
 from x_extension.runtime import dispatch
@@ -81,10 +81,10 @@ def test_partial_list_envelopes_never_prove_absence_or_resumability(monkeypatch,
 
     monkeypatch.setattr(XClient, "request", request)
     result = dispatch(setup_invocation("get_webhook_status"))
-    assert (result.get("result", {}).get("callback_setup") or {}).get("outcome") not in {
-        "configured",
-        "absent",
-        "resumable",
+    assert result.get("result", {}).get("status") not in {
+        "ready",
+        "not_configured",
+        "webhook_created",
     }
 
 
@@ -112,7 +112,7 @@ def test_narrowed_subscription_is_not_account_wide_and_retains_owned_id(monkeypa
 
     monkeypatch.setattr(XClient, "request", request)
     result = dispatch(setup_invocation("get_webhook_status"))
-    assert result["result"]["callback_setup"]["outcome"] == "unknown"
+    assert result["result"]["status"] == "unknown"
     assert result["project_state_updates"][0]["value"]["subscription_id"] == "800"
 
 
@@ -133,8 +133,9 @@ def test_delete_requires_authoritative_success_before_dropping_ids(monkeypatch, 
             state={"account_user_id": "123", "webhook_id": "700", "subscription_id": "800"},
         )
     )
-    assert result["ok"] is False
-    assert result["error_code"] == "timeout_unknown"
+    assert result["ok"] is True
+    assert result["result"]["configured"] is False
+    assert result["result"]["error"]["code"] == "timeout_unknown"
     saved = result["project_state_updates"][0]["value"]
     assert saved["webhook_id"] == "700" and saved["subscription_id"] == "800"
 
@@ -166,17 +167,21 @@ def test_exact_remote_404_is_confirmed_absence_for_owned_id(monkeypatch):
             state={"account_user_id": "123", "webhook_id": "700", "subscription_id": "800"},
         )
     )
-    assert result["result"]["callback_setup"]["outcome"] == "absent"
+    assert result["result"]["status"] == "removed"
 
 
 @pytest.mark.parametrize("status", [401, 402, 429])
-def test_definitive_first_setup_rejection_is_safe_to_correct_and_retry(monkeypatch, status):
+def test_definitive_first_mutation_rejection_can_be_corrected_then_rediscovered(
+    monkeypatch, status
+):
     import io
     from urllib.error import HTTPError
 
     transport = Mock(
         side_effect=[
+            io.BytesIO(b'{"data":[]}'),
             HTTPError("https://api.x.com/2/webhooks", status, "rejected", {}, None),
+            io.BytesIO(b'{"data":[]}'),
             io.BytesIO(b'{"data":{"id":"700","valid":true}}'),
             io.BytesIO(b'{"data":{"subscription":{"subscription_id":"800"}}}'),
         ]
@@ -184,13 +189,11 @@ def test_definitive_first_setup_rejection_is_safe_to_correct_and_retry(monkeypat
     monkeypatch.setattr("x_extension.client.open_pinned_url", transport)
     result = dispatch(setup_invocation("configure_webhook", callback_url=URL))
     assert result["ok"] is False
-    assert result["result"]["callback_setup"]["outcome"] == "not_started"
     assert result["definitely_no_external_effect"] is True
-    assert transport.call_count == 1
-    saved = result["project_state_updates"][0]["value"]
-    retried = dispatch(setup_invocation("configure_webhook", state=saved, callback_url=URL))
-    assert retried["result"]["callback_setup"]["outcome"] == "configured"
-    assert transport.call_count == 3
+    assert transport.call_count == 2
+    retried = dispatch(setup_invocation("configure_webhook", callback_url=URL))
+    assert retried["result"]["configured"] is True
+    assert transport.call_count == 5
 
 
 def test_saved_webhook_id_cannot_be_replaced_by_other_id_with_same_url(monkeypatch):
@@ -206,21 +209,28 @@ def test_saved_webhook_id_cannot_be_replaced_by_other_id_with_same_url(monkeypat
             state={"account_user_id": "123", "webhook_id": "700", "subscription_id": "800"},
         )
     )
-    assert (result.get("result", {}).get("callback_setup") or {}).get("outcome") == "unknown"
+    assert result["result"]["status"] == "unknown"
     assert result["project_state_updates"][0]["value"]["webhook_id"] == "700"
 
 
 def test_http_request_timeout_is_ambiguous_not_a_definitive_rejection(monkeypatch):
+    import io
     from urllib.error import HTTPError
 
     monkeypatch.setattr(
         "x_extension.client.open_pinned_url",
-        Mock(side_effect=HTTPError("https://api.x.com/2/webhooks", 408, "timeout", {}, None)),
+        Mock(
+            side_effect=[
+                io.BytesIO(b'{"data":[]}'),
+                HTTPError("https://api.x.com/2/webhooks", 408, "timeout", {}, None),
+            ]
+        ),
     )
     result = dispatch(setup_invocation("configure_webhook", callback_url=URL))
-    assert result["error_code"] == "timeout_unknown"
-    assert result["definitely_no_external_effect"] is False
-    assert result["result"].get("callback_setup", {}).get("outcome") != "not_started"
+    assert result["ok"] is True
+    assert result["result"]["status"] == "unknown"
+    assert result["result"]["configured"] is False
+    assert result["result"]["error"]["code"] == "timeout_unknown"
 
 
 @pytest.mark.parametrize(
@@ -262,7 +272,7 @@ def test_saved_subscription_anchor_is_never_replaced_or_discarded(monkeypatch, r
             state={"account_user_id": "123", "webhook_id": "700", "subscription_id": "800"},
         )
     )
-    assert result["result"]["callback_setup"]["outcome"] == "unknown"
+    assert result["result"]["status"] == "unknown"
     assert result["project_state_updates"][0]["value"]["subscription_id"] == "800"
 
 
@@ -281,5 +291,5 @@ def test_complete_saved_subscription_absence_without_replacement_is_resumable(mo
             state={"account_user_id": "123", "webhook_id": "700", "subscription_id": "800"},
         )
     )
-    assert result["result"]["callback_setup"]["outcome"] == "resumable"
+    assert result["result"]["status"] == "webhook_created"
     assert "subscription_id" not in result["project_state_updates"][0]["value"]

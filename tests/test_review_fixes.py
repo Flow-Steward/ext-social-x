@@ -52,6 +52,8 @@ def test_setup_uses_shared_deadline_without_repeating_host_identity(monkeypatch)
 
     def request(self, method, path, **kwargs):
         calls.append((path, self.deadline))
+        if path.startswith("/2/webhooks?"):
+            return {"data": []}
         if path == "/2/webhooks":
             return {"data": {"id": "700", "valid": True}}
         if path == "/2/activity/subscriptions":
@@ -63,7 +65,7 @@ def test_setup_uses_shared_deadline_without_repeating_host_identity(monkeypatch)
         invocation("configure_webhook", callback_url="https://fs.example/callback/token")
     )
     assert result["ok"], result
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert len({deadline for _, deadline in calls}) == 1
 
 

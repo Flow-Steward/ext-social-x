@@ -1,6 +1,5 @@
 """Provider boundary and deterministic normalization regression tests."""
 
-import hashlib
 import io
 from unittest.mock import Mock
 
@@ -35,13 +34,6 @@ def envelope(operation="validate_post", **inputs):
             },
         },
     }
-    if operation in {"configure_webhook", "get_webhook_status", "remove_webhook"}:
-        url = inputs.get("callback_url", "https://fs.example/webhook/token")
-        payload["action"]["target"]["callback_setup"] = {
-            "outcome": "fresh",
-            "attempt_id": "attempt",
-            "callback_url_hash": hashlib.sha256(url.encode()).hexdigest(),
-        }
     return payload
 
 
@@ -136,11 +128,31 @@ def reply_event():
 
 
 def event_envelope(event):
-    return envelope(
+    payload = envelope(
         "receive_event",
-        callback={"callback_id": "events", "authenticated": True, "connection_id": "c"},
-        request={"method": "POST", "json": event},
+        callback={
+            "callback_id": "events",
+            "authenticated": True,
+            "connection_id": "c",
+            "project_id": "p",
+        },
+        request={
+            "method": "POST",
+            "json": event,
+            "provider": {
+                "provider_key": "flowsteward.x",
+                "connection_id": "c",
+                "project_id": "p",
+                "binding_config": {"oauth": {"subject": "123", "lifecycle_status": "connected"}},
+            },
+        },
     )
+    payload["action"]["target"] = {}
+    payload["host"] = {
+        "principal": {"actor_id": "flowsteward.x_callback", "principal_type": "system_actor"},
+        "scope": {"project_id": "p", "account_id": "a"},
+    }
+    return payload
 
 
 def test_account_wide_external_old_post_normalized_stably():
@@ -233,6 +245,8 @@ def test_webhook_and_private_subscription_auth_split(monkeypatch):
         calls.append((self.token, method, path, kw))
         if path == "/2/users/me":
             return {"data": {"id": "123", "username": "owner"}}
+        if path.startswith("/2/webhooks?"):
+            return {"data": []}
         if path == "/2/webhooks":
             return {"data": {"id": "700", "valid": True}}
         return {"data": {"subscription": {"subscription_id": "800"}}}
@@ -327,7 +341,7 @@ def test_media_invalid_bytes_rejected_before_network(monkeypatch):
 
 def test_private_identity_comes_only_from_host_config(monkeypatch):
     payload = event_envelope(reply_event())
-    payload["action"]["target"]["connection"]["config"] = {}
+    payload["action"]["input"]["request"]["provider"]["binding_config"] = {}
     payload["action"]["input"]["account_user_id"] = "123"
     assert not runtime.dispatch(payload)["ok"]
 
@@ -347,3 +361,49 @@ def test_remove_only_saved_owned_remote_ids(monkeypatch):
     result = runtime.dispatch(envelope("remove_webhook", webhook_id="foreign"))
     assert result["ok"]
     call.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "principal",
+    [
+        {"actor_id": "operator", "actor_type": "user"},
+        {"actor_id": "service", "actor_type": "service_account"},
+        {"actor_id": None},
+        {"actor_type": ""},
+    ],
+)
+def test_raw_invoke_forged_callback_host_rejected_by_trusted_runtime_audit(principal):
+    payload = event_envelope(reply_event())
+    payload["runtime_context"].update(principal)
+    result = runtime.dispatch(payload)
+    assert result["ok"] is False
+    assert not result.get("events")
+
+
+def test_callback_ordinary_action_principal_cannot_forge_authenticated_input():
+    payload = event_envelope(reply_event())
+    payload["host"]["principal"] = {"actor_id": "operator", "principal_type": "user"}
+    assert runtime.dispatch(payload)["ok"] is False
+
+
+def test_comment_source_separates_connections_and_projects():
+    payload = event_envelope(reply_event())
+    first = runtime.dispatch(payload)["events"][0]["correlation_id"]
+    payload["action"]["input"]["callback"]["connection_id"] = "other"
+    payload["action"]["input"]["request"]["provider"]["connection_id"] = "other"
+    second = runtime.dispatch(payload)["events"][0]["correlation_id"]
+    assert second != first
+    payload["action"]["input"]["callback"]["project_id"] = "other-project"
+    payload["action"]["input"]["request"]["provider"]["project_id"] = "other-project"
+    payload["host"]["scope"]["project_id"] = "other-project"
+    payload["runtime_context"]["project_id"] = "other-project"
+    assert runtime.dispatch(payload)["events"][0]["correlation_id"] not in {first, second}
+
+
+def test_declared_query_reads_params_envelope():
+    payload = envelope()
+    target = payload.pop("action")["target"]
+    payload.update(mode="query", query={"query_id": "provider_health", "params": {}}, target=target)
+    assert runtime.dispatch(payload)["result"]["status"] == "bundle_ready"
+    payload["query"]["params"] = "malformed"
+    assert runtime.dispatch(payload)["error_code"] == "invalid_payload"

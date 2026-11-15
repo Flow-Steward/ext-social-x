@@ -196,7 +196,9 @@ actions:
   - webhook_id
   - subscription_id
   - status
-  - callback_setup
+  - configured
+  - reconciliation_required
+  - error
   error_codes: *id001
   command_type: invoke_extension_action
   test_mode_behavior: suppress
@@ -212,10 +214,15 @@ actions:
         - app_bearer_token
   mutates_platform: false
   workflow_visible: false
-  parameters: []
+  parameters:
+  - name: callback_url
+    type: string
+    required: false
   result_fields:
   - status
-  - callback_setup
+  - configured
+  - reconciliation_required
+  - error
   error_codes: *id001
 - action_id: remove_webhook
   title: Remove webhook
@@ -232,7 +239,9 @@ actions:
   parameters: []
   result_fields:
   - status
-  - callback_setup
+  - configured
+  - reconciliation_required
+  - error
   error_codes: *id001
   command_type: invoke_extension_action
   test_mode_behavior: suppress

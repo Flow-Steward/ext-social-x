@@ -1,4 +1,4 @@
-"""Declared connection-scoped state and neutral host callback setup receipts."""
+"""Declared connection-scoped remote lifecycle records."""
 
 
 def state_from_target(target: dict, connection_id: str) -> dict:
@@ -12,10 +12,16 @@ def state_from_target(target: dict, connection_id: str) -> dict:
     return {}
 
 
-def state_response(state: dict, *, callback_outcome: str | None = None) -> dict:
-    result = dict(state)
-    if callback_outcome is not None:
-        result["callback_setup"] = {"outcome": callback_outcome}
+def state_response(state: dict, *, error: dict | None = None) -> dict:
+    # ok means the lifecycle record was processed. Callers must inspect configured/status.
+    result = {
+        **state,
+        "configured": state.get("status") == "ready",
+        "reconciliation_required": state.get("status")
+        in {"unknown", "setup_failed", "remove_failed", "not_ready", "webhook_created"},
+    }
+    if error:
+        result["error"] = error
     return {
         "ok": True,
         "result": result,

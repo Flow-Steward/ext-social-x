@@ -1,17 +1,14 @@
-"""Provider-owned webhook lifecycle; durable state belongs exclusively to Core."""
+"""Provider-owned lifecycle using ordinary action targets and project state."""
 
 from __future__ import annotations
-
-import hashlib
-from urllib.parse import urlsplit
 
 from .client import XClient, XError
 from .events import numeric_id, verified_subject
 from .remote_receipts import confirmed_deletion
 from .webhook_state import state_from_target as state_from_target
 from .webhook_state import state_response
-from .webhook_status import owned_webhook
 from .webhook_status import status as status
+from .webhook_url import callback_url_hash
 
 
 def app_token(payload: dict, connection: dict) -> str:
@@ -22,23 +19,13 @@ def app_token(payload: dict, connection: dict) -> str:
 def configure(options: dict, connection: dict, state: dict, user: XClient, app: XClient) -> dict:
     subject = verified_subject(connection)
     url = options.get("callback_url")
-    if (
-        not isinstance(url, str)
-        or len(url) > 200
-        or urlsplit(url).scheme != "https"
-        or not urlsplit(url).hostname
-    ):
-        raise XError(
-            "invalid_payload",
-            "A Core-issued public HTTPS callback URL of at most 200 characters is required.",
-        )
+    url_hash = callback_url_hash(url)
     has_remote = bool(state.get("webhook_id") or state.get("subscription_id"))
     if has_remote and state.get("account_user_id") != subject:
         raise XError(
             "invalid_connection",
             "Saved webhook belongs to a previous OAuth account; reconcile and remove it before setup.",
         )
-    url_hash = hashlib.sha256(url.encode()).hexdigest()
     if has_remote and state.get("callback_url_hash") and state["callback_url_hash"] != url_hash:
         raise XError(
             "webhook_not_ready",
@@ -53,6 +40,15 @@ def configure(options: dict, connection: dict, state: dict, user: XClient, app: 
     state.update(account_user_id=subject, callback_url_hash=url_hash)
     effect_possible = False
     try:
+        # Every configure first lists the exact URL and subscriptions. This also
+        # recovers remote IDs after a lost response without a host intent protocol.
+        reconciled = status(state, user, app, {"callback_url": url}, subject)
+        if state.get("status") == "unknown":
+            return reconciled
+        if state.get("status") == "ready":
+            return reconciled
+        if state.get("status") == "not_ready":
+            return reconciled
         if not state.get("webhook_id"):
             remote = app.request("POST", "/2/webhooks", body={"url": url}).get("data") or {}
             effect_possible = True
@@ -77,13 +73,6 @@ def configure(options: dict, connection: dict, state: dict, user: XClient, app: 
                 raise XError(
                     "webhook_not_ready",
                     "X did not validate CRC; verify the same app's OAuth client secret and HTTPS access.",
-                )
-        else:
-            remote = owned_webhook(app, state)
-            if remote.get("valid") is not True:
-                raise XError(
-                    "webhook_not_ready",
-                    "Saved X webhook is not CRC validated; check matching app credentials.",
                 )
         if not state.get("subscription_id"):
             data = (
@@ -120,11 +109,12 @@ def configure(options: dict, connection: dict, state: dict, user: XClient, app: 
                     unknown=True,
                 )
         state["status"] = "ready"
-        return state_response(state, callback_outcome="configured")
+        return state_response(state)
     except XError as exc:
         exc.effect_possible = exc.effect_possible or effect_possible
         state["status"] = "unknown" if exc.unknown else "setup_failed"
-        exc.details["project_state_updates"] = state_response(state)["project_state_updates"]
+        if exc.effect_possible or state.get("webhook_id") or state.get("subscription_id"):
+            return state_response(state, error={"code": exc.code, "message": str(exc)})
         raise
 
 
@@ -159,9 +149,8 @@ def remove(state: dict, user: XClient, app: XClient) -> dict:
                 effect_possible = True
                 state.pop(field, None)
         state["status"] = "removed"
-        return state_response(state, callback_outcome="absent")
+        return state_response(state)
     except XError as exc:
         exc.effect_possible = exc.effect_possible or effect_possible
-        state["status"] = "remove_failed"
-        exc.details["project_state_updates"] = state_response(state)["project_state_updates"]
-        raise
+        state["status"] = "unknown" if exc.unknown else "remove_failed"
+        return state_response(state, error={"code": exc.code, "message": str(exc)})

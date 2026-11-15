@@ -33,7 +33,8 @@ For fully automatic sending, first obtain X's explicit written AI-bot approval,
 record owner consent, enable all three connection attestations, replace human
 approval with your approved policy/opt-out checks, and set `automated: true` on
 the send step. Preserve `reply_to_post_id: state.inputs.comment_id` and the
-same connection mapping so the host's business-effect claim remains effective.
+same connection mapping. Enable one reply workflow per connection: this host
+has per-workflow event dedup, not a cross-workflow business-key claim.
 
 App bearer storage uses the existing authenticated host endpoint
 `POST /api/providers/flowsteward.x/secrets` with JSON fields `project_id`,
@@ -42,49 +43,79 @@ App bearer storage uses the existing authenticated host endpoint
 Use the host's secret administration UI or an authenticated API client. Do not
 commit or save a request containing the real value in this bundle.
 
-Activate the host callback through the existing authenticated endpoint
-`POST /api/extensions/flowsteward.x/callbacks/events` with JSON:
+This candidate requires platform API `1.9.0`, including the final ADR 0072
+callback profile. The authoring field shape is confirmed; release remains blocked
+until the host implementation is integrated and verified. Product version `0.9.18`
+is a separate version.
+
+On the X connection, save `webhook_signing_secret` with the matching X app's
+**OAuth2 client secret**. This is the key for
+`X-Twitter-Webhooks-Signature-OAuth2` and CRC. The legacy OAuth1 consumer secret
+belongs to the legacy signature header; this extension does not select it. The
+app-only bearer token never signs webhooks. See the official
+[introduction](https://docs.x.com/x-api/webhooks/introduction) and
+[quickstart](https://docs.x.com/x-api/webhooks/quickstart).
+
+Create the local callback using the authenticated endpoint
+`POST /api/extensions/flowsteward.x/callbacks/events`:
 
 ```json
-{"project_id":"<project UUID>","connection_id":"<X connection UUID>","enabled":true,"configure":true,"configure_action_id":"configure_webhook"}
+{"project_id":"<project UUID>","connection_id":"<X connection UUID>","enabled":true,"configure":false}
 ```
 
-Core creates the local registration, exposes CRC and supplies the canonical
-callback URL before invoking setup. Treat the returned callback URL/token as
-private capability data. For the returned registration ID, call
-`POST /api/extensions/flowsteward.x/callbacks/<registration ID>/status` with
-`{"action_id":"get_webhook_status"}`. The same authorized registration action
-surface can invoke hidden `remove_webhook` for owned remote cleanup. Disable
-local ingress/connection before removing remote resources.
+Keep the returned one-time callback URL/token privately. CRC becomes available
+on that registration before X is contacted. Do not rotate/recreate it to retry.
+The built-in callback configure/status endpoints do not supply this extension's
+normal connection/project-state target. Use **ordinary action invocation**:
+`POST /api/extensions/flowsteward.x/action/configure_webhook`, selecting the exact
+connection in the target and supplying the URL in the action input:
 
-Resume a partial setup on the **same registration ID** through its existing
-status endpoint with `{"action_id":"configure_webhook"}`. Core recovers the
-canonical callback URL from its encrypted capability. Do not create/rotate a
-registration to retry: that would change the callback URL. Core fences a prior
-unknown attempt and serializes setup/removal by the owned connection.
+```json
+{"context":{"project_id":"<project UUID>"},"target":{"connection_id":"<X connection UUID>"},"input":{"callback_url":"<one-time callback URL>"}}
+```
 
-After an interrupted request, first invoke `get_webhook_status`. It lists the
-app's webhooks using the official `GET /2/webhooks` endpoint and exact host URL
-SHA256, and reads subscriptions for the verified user. An exact owned webhook
-without a subscription is `resumable`; exact webhook+subscription is `configured`.
-Malformed, incomplete, paginated or duplicate matches remain `unknown`. No
-unrelated app webhook is adopted or removed. Remote IDs stay only in declared
-connection-scoped project state.
+The same
+ordinary surface invokes `get_webhook_status` and `remove_webhook` (these manager
+operations stay hidden from workflow steps). For status, `input` may be `{}`
+when the saved URL hash exists, or include the original `callback_url` to recover
+missing state. Removal takes `input:{}`. Never send
+connection config, tokens or an asserted account ID as target data.
 
-A conclusive absent result after an ambiguous attempt requires the host quiet
-window and explicit operator reconciliation. Inspect the X app's actual remote
-resources first, then call the same status endpoint with
-`{"action_id":"get_webhook_status","runtime":{"reconcile_absent":true}}`.
-This flag belongs to Core and is removed before extension invocation. Missing
-credentials, invalid local setup inputs, or a definitive first-request provider
-rejection (such as 401/402/429) return `not_started`, allowing normal correction/
-retry without a manual unknown-outcome acknowledgement. An earlier accepted or
-possible remote change prevents this safe receipt; HTTP408, 5xx, network timeout
-and malformed success stay unknown. A process
-crash or any possible remote mutation keeps the durable host intent fenced.
+Configure first lists the app's webhooks and finds the exact URL, then checks
+account subscriptions before creating missing resources. This can rediscover IDs
+after a lost response; it is not a durable host setup-intent protocol. Serialize
+setup/removal manually: concurrent calls can race between list and create.
+A process crash can lose a state update, and an in-flight remote request may
+finish later. After a timeout or interruption, wait for it to settle and inspect
+X's actual app registrations/subscriptions, then invoke `get_webhook_status`
+with the original callback URL before considering another configure. Do not
+retry blindly or automatically. Preserve any known owned IDs during cleanup.
 
-Removal only clears a saved ID after authoritative `data.deleted: true` without
-provider errors, or the documented exact resource 404. Partial deletion keeps
-remaining owned IDs. Status rejects account switches, narrowed post qualifiers,
-nonempty error envelopes, inconsistent counts, continuation tokens and saturated
-1000-row subscription pages; these never prove absence or authorize a new create.
+Ordinary lifecycle actions return a processed record. Inspect the inner result,
+not just `ok` or HTTP status:
+
+| Result | Meaning |
+| --- | --- |
+| `configured:true`, `status:ready` | exact own CRC-valid webhook and account-wide subscription found |
+| `configured:false`, `status:webhook_created` | webhook exists; subscription needs explicit configure |
+| `configured:false`, `status:not_configured` | complete exact-URL list found no webhook; operator decides next step |
+| `configured:false`, `status:unknown/setup_failed/remove_failed`, `reconciliation_required:true` | stop, inspect the safe error and remote state before retry |
+| `status:removed` | saved resources were authoritatively removed or already absent |
+
+A caught partial or ambiguous lifecycle result uses `ok:true` so the existing
+host persists its declared connection-scoped `project_state_updates`; it never
+claims remote success. Deterministic errors before any accepted/possible
+mutation remain `ok:false`. There are no durable host intent receipts, quiet
+window enforcement or `reconcile_absent` API flag in this contract.
+
+Status rejects account switches, changed URL hashes, replacement saved IDs,
+narrowed filters, nonempty provider errors, inconsistent counts, continuation
+and saturated 1000-row subscription lists. Such responses do not prove absence
+or authorize a new create. Removal clears a saved ID only after
+`data.deleted:true` without errors or an exact resource 404. Partial removal
+preserves remaining owned IDs.
+
+Provider event dispatch deduplicates a stable project/connection/account/comment
+source per workflow. Two different reply workflows can still send two replies.
+Workflow enqueue failures may be logged while the callback is acknowledged;
+monitor host trigger outcomes and reconcile failed admission operationally.

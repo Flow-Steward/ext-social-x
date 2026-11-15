@@ -3,7 +3,15 @@ title: X setup
 components:
 - component_id: x_setup
   type: markdown
-  body: Connect your X app with OAuth 2.0 PKCE and the same app bearer token. See
-    README.md for HTTPS CRC, credits, webhook activation and workflow setup. Automated
-    AI replies are disabled by default and require X written permission, owner consent,
-    and an opt-out policy.
+  body: >-
+    Connect X with OAuth 2.0 PKCE. Save the matching OAuth2 client secret as
+    webhook_signing_secret on the connection, and the same app's app-only bearer
+    token in project provider secrets. Register callback events with configure:false,
+    retain its one-time URL privately, then invoke configure_webhook through the
+    ordinary action API with that URL and the exact connection. Use the same action
+    API for get_webhook_status and remove_webhook. Inspect configured and status:
+    ok alone means the lifecycle record was processed, not that remote setup succeeded.
+    Unknown or partial results need operator reconciliation; do not retry automatically.
+    README.md and artifacts/workflows/SETUP.md contain the full steps.
+    Automatic AI replies remain disabled until X permission, owner consent and an
+    opt-out policy are recorded.

@@ -1,6 +1,9 @@
 # X extension 1.0.0
 
-SDK-only `flowsteward.x`, Python 3.12, `extension_host_v2`. The official X API
+SDK-only `flowsteward.x`, Python 3.12, `extension_host_v2`, platform API minimum
+`1.9.0` (distinct from product release `0.9.18`). **Release blocked:** callback
+ADR 0072 authoring fields are confirmed, but the required host implementation,
+release integration and verification remain pending. Central `289205a8` alone does not support this profile. The official X API
 publishes announcements with one static image and an intact article link, and
 receives new direct replies to **every post of the selected account**, including
 old posts and posts published outside Flow Steward. Historical comments,
@@ -18,7 +21,11 @@ API may further restrict protected-account events.
    Copy the **Core-generated OAuth redirect URL** to the X developer console.
    Configure that exact application's client ID and client secret in its OAuth
    configuration. Core owns exchange, refresh, and secrets; the extension never
-   receives the client secret, refresh token, or authorization code.
+   receives the refresh token or authorization code. For webhook verification,
+   enter a separate connection secret `webhook_signing_secret` containing the
+   **same app's OAuth2 client secret**. Core resolves this named connection secret;
+   no OAuth-configuration secret lookup or lineage is assumed. Never enter the
+   app bearer token or the legacy OAuth1 consumer secret in this field.
 2. Authorize an `x_account` connection with `tweet.read tweet.write users.read
    media.write offline.access`. Missing scopes require reauthorization. Core's
    post-connect `verify_identity` action reads `/2/users/me`; the verified user ID
@@ -29,34 +36,38 @@ API may further restrict protected-account events.
    project; multiple authorized accounts may share that app. Do not paste it in a workflow or model prompt. App-only auth manages
    webhooks; connected-user OAuth creates the private `post.reply.create`
    subscription. Do not substitute one token for the other.
-4. Set `FS_PUBLIC_BASE_URL` to a public HTTPS origin reachable by X. Prepare a
-   connection-scoped callback registration for callback `events` in Core, then
-   run its hidden `configure_webhook` action through the callback setup API/UI.
-   Core makes GET CRC available **before** contacting X and durably records a
-   setup intent before any remote mutation. Setup actions require the host-owned
-   callback target and cannot be called through ordinary workflow/action APIs. The action registers
-   `/2/webhooks`, requires its `valid` CRC result, then creates
-   `/2/activity/subscriptions` with `event_type: post.reply.create`,
-   `filter: {user_id: <verified subject>}`, and the new webhook ID. It sends no
-   `post_id` qualifier. Status/resume uses official `GET /2/webhooks`, selects
-   only the exact owned ID/callback hash, and never assumes GET-by-ID exists. It never adopts or deletes another registration.
-5. Check hidden `get_webhook_status`. Only a validated own webhook with a saved
-   own subscription is ready. A changed OAuth account or callback capability
-   requires reconciling/removing the previous remote setup first. Remote IDs and status are returned as declared,
-   connection-scoped `project_state_updates`; no private database exists.
-6. Assign the reply workflow to the project and create an enabled
-   `x_comment_received` trigger selecting the exact `connection_id`. Content,
-   author, topic, language, opt-out and response decisions belong in workflow
-   conditions. Disabling the connection or ingress immediately stops local
-   dispatch. Use `remove_webhook` for the saved own subscription/webhook IDs;
-   remote failures remain visible and can be retried after checking status.
-   Resume through the same registration ID; see SETUP.md for durable unknown
-   fencing, exact remote reconciliation and the host-only absence confirmation.
+4. Set `FS_PUBLIC_BASE_URL` to a public HTTPS origin reachable by X. Create a
+   connection-scoped callback `events` with `configure: false`, then privately
+   retain its one-time callback URL. CRC is handled by the generic host callback
+   profile. Invoke `configure_webhook` through the ordinary authenticated action
+   API, selecting the exact connection and supplying that URL. The built-in
+   callback configure/status routes do not hydrate the connection and project
+   state needed by this extension; use the ordinary actions described in SETUP.md.
+5. Configure lists `GET /2/webhooks` and looks for the exact callback URL **before
+   creating anything**. It also checks the verified user's subscriptions before
+   creating the account-wide `post.reply.create` subscription. No `post_id`
+   qualifier is sent. Exact saved remote IDs remain ownership anchors. Duplicate,
+   malformed, incomplete, narrowed or conflicting matches require reconciliation.
+6. Inspect `get_webhook_status` through the same ordinary action API. Supply the
+   original URL if local state was lost. Ready means `configured: true` and
+   `status: ready`. A processed lifecycle response may have `ok: true` while
+   `configured: false`, `reconciliation_required: true`, and a safe `error`.
+   This persists a partial/unknown lifecycle record using the existing project
+   state contract; it never means remote setup succeeded. Stop and reconcile
+   before retrying. Account switches require resolving the previous remote setup.
+7. Assign the reply workflow and bind an enabled `x_comment_received` trigger to
+   the exact `connection_id`. Filtering, opt-out and response decisions stay in
+   workflow conditions. Disable local ingress/connection before invoking ordinary
+   `remove_webhook` for the saved own IDs. Keep the original callback capability;
+   recreating/rotating it changes the URL and requires explicit remote cleanup.
 
 Core checks the raw-body OAuth2 HMAC signature before invoking the extension:
 `X-Twitter-Webhooks-Signature-OAuth2: sha256=<base64 digest>`. GET CRC returns
 Core's top-level `response_token` JSON and executes no extension action or
-workflow. Credentials from incompatible applications cannot complete CRC.
+workflow. The profile names `webhook_signing_secret` on the selected connection. Both CRC
+and the OAuth2 signature use that app's OAuth2 client secret; the app-only bearer
+is exclusively API authorization. The extension never verifies signatures itself.
+See [X's signing-secret distinction](https://docs.x.com/x-api/webhooks/introduction).
 
 ## Actions
 
@@ -67,7 +78,7 @@ workflow. Credentials from incompatible applications cannot complete CRC.
 | `upload_media` | connection, JPEG artifact, optional `alt_text` | media ID and provider expiry |
 | `publish_post` | connection, text, optional link/media IDs | post ID, URL, text |
 | `get_post` | connection, post ID | text, author, parent ID, conversation ID and available public context |
-| `reply_to_post` | connection, `reply_to_post_id`, text, optional media IDs | one reply, with host business-effect protection per inbound comment |
+| `reply_to_post` | connection, `reply_to_post_id`, text, optional media IDs | one reply under the host operation idempotency contract |
 
 All X IDs are strings. Validation uses the twitter-text-compatible parser with
 NFC normalization, weighted Unicode/emoji sequences and detected URLs counting
@@ -83,10 +94,15 @@ The incoming event is `x.comment.received`. Payload fields include
 `author_user_id`, `parent_post_id`, `conversation_id`, `created_at`, `comment_url`
 and `parent_post_url`. Missing optional context is null, never invented. Parent
 and root conversation IDs differ. Metadata retains the delivery UUID for audit;
-correlation uses the connected account plus logical comment, so redelivery with
-a new UUID does not produce another workflow. Own authored posts/replies and
+correlation uses project, connection, connected account and logical comment.
+Central dispatch deduplicates that stable source per workflow; a redelivery UUID
+does not alter it. Own authored posts/replies and
 foreign-account/direct-parent events are suppressed. Receiving an event never
-sends a reply. Core durably admits workflow execution before ACK.
+sends a reply. The callback boundary also checks Core's authoritative system
+principal and scope before accepting its provider binding. Central dispatch may
+ACK an event even if a workflow enqueue fails; there is no guarantee of durable
+workflow admission or provider retry for that failure. Check trigger outcomes
+and host logs operationally.
 
 ## Workflow templates
 
@@ -125,8 +141,10 @@ timeouts bound each request to at most 25 seconds. The single-threaded Linux
 subprocess has a 120-second host limit. Timers/handlers are restored on errors. Network timeout, disconnect, malformed success, or provider
 5xx after a mutation yields `timeout_unknown`. Core blocks blind replay; inspect
 X's actual post/media and resolve the host ledger before any deliberate resend.
-A reply's business key is `reply_to_post_id`, so parallel workflows cannot send
-two replies to the same interaction in the same connection. Successful media
+Per-workflow event dedup and operation idempotency do not prevent two different
+workflows or independently keyed calls from replying to the same comment. Enable
+one reply workflow per connection and require review; there is no cross-workflow
+business-key claim in this platform contract. Successful media
 upload followed by failed metadata is also an unknown complete operation; the
 response retains the media ID for reconciliation. Authentication, forbidden,
 credit, rate, unavailable, not-found and bounded-response errors are distinct,
@@ -145,14 +163,16 @@ pinned in `requirements.in` and `extension.yaml` with wheel hashes. `wheels/`
 contains a universal twitter-text-parser wheel and separate CPython 3.12 Pillow
 wheels for Linux AMD64 and ARM64. `dev-wheels/` contains the public SDK wheel;
 Core provides the SDK in installed runtime. Packaging is not live X acceptance.
-See the task report for actual validation, packaging and architecture evidence.
+This adaptation has not been tested, statically checked or packaged; previous
+candidate evidence does not validate these changes. Verification requires a
+separately authorized run against the integrated ADR 0072 host.
 
 Live acceptance needs a real X app, credits, public HTTPS and account access:
 OAuth → CRC/registration → publish with image/link → external direct comment on
 a post created outside Flow Steward → one workflow → reviewed reply. Automatic
 AI sending is not tested without written X permission.
 
-## Provider references (checked 2026-11-14)
+## Provider references (webhook signing checked 2026-11-15)
 
 - [Activity events and private reply auth](https://docs.x.com/x-api/activity/event-payloads)
 - [Subscription creation](https://docs.x.com/x-api/activity/create-x-activity-subscription)

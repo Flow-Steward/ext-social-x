@@ -16,14 +16,12 @@ from flowsteward_extension_sdk.artifacts import (
 from . import images, text, webhooks
 from .client import XClient, XError
 from .errors import failure as failure
-from .errors import require_callback_setup
 from .events import numeric_id, receive_event, verified_subject
 
 MUTATIONS = {"publish_post", "reply_to_post", "upload_media"}
 
 
 def dispatch(payload: dict) -> dict:
-    setup = None
     id_ = ""
     deadline = monotonic() + 75
     try:
@@ -37,19 +35,13 @@ def dispatch(payload: dict) -> dict:
         if not isinstance(operation, dict):
             raise XError("invalid_payload", "An action or query object is required.")
         id_ = str(operation.get("action_id") or operation.get("query_id") or "")
-        options = operation.get("input") or {}
+        options = operation.get("input" if payload.get("mode") == "action" else "params") or {}
         if not isinstance(options, dict):
             raise XError("invalid_payload", "Operation input must be an object.")
-        target = operation.get("target") or {}
+        target = (
+            operation.get("target") if payload.get("mode") == "action" else payload.get("target")
+        ) or {}
         connection = target.get("connection") or {}
-        if id_ in {"configure_webhook", "get_webhook_status", "remove_webhook"}:
-            setup = require_callback_setup(target, needs_attempt=id_ != "get_webhook_status")
-            if id_ != "get_webhook_status" and setup["outcome"] == "unknown":
-                raise XError(
-                    "timeout_unknown",
-                    "Previous setup outcome is unknown; run callback status reconciliation first.",
-                    unknown=True,
-                )
         if id_ == "provider_health":
             return {"ok": True, "result": {"status": "bundle_ready"}}
         if id_ == "validate_post":
@@ -77,7 +69,9 @@ def dispatch(payload: dict) -> dict:
                 },
             }
         if id_ == "receive_event":
-            return receive_event(options, connection)
+            return receive_event(
+                options, payload.get("host") or {}, payload.get("runtime_context") or {}
+            )
         if id_ in {"publish_post", "reply_to_post"}:
             return _publish(id_, options, connection, deadline)
         if id_ == "upload_media":
@@ -120,26 +114,26 @@ def dispatch(payload: dict) -> dict:
                 },
             }
         if id_ in {"configure_webhook", "get_webhook_status", "remove_webhook"}:
-            state = webhooks.state_from_target(target, connection.get("connection_id", ""))
+            subject = verified_subject(connection)
+            if not connection.get("connection_id"):
+                raise XError(
+                    "invalid_connection", "Select an exact X connection for webhook management."
+                )
+            state = webhooks.state_from_target(target, connection["connection_id"])
+            if state.get("account_user_id") and state["account_user_id"] != subject:
+                raise XError(
+                    "invalid_connection", "Saved remote state belongs to a previous OAuth account."
+                )
             if id_ == "remove_webhook" and not state:
-                return webhooks.state_response({"status": "removed"}, callback_outcome="absent")
+                return webhooks.state_response({"status": "removed"})
             app = XClient(webhooks.app_token(payload, connection), deadline=deadline)
             if id_ == "configure_webhook":
                 return webhooks.configure(options, connection, state, user, app)
             if id_ == "get_webhook_status":
-                return webhooks.status(state, user, app, setup or {}, verified_subject(connection))
+                return webhooks.status(state, user, app, options, subject)
             return webhooks.remove(state, user, app)
         raise XError("invalid_payload", "Unknown X operation.")
     except XError as exc:
-        if (
-            setup is not None
-            and id_ in {"configure_webhook", "remove_webhook"}
-            and not exc.unknown
-            and not exc.effect_possible
-        ):
-            exc.details["result"] = {"callback_setup": {"outcome": "not_started"}}
-        if setup is not None and exc.effect_possible:
-            exc.details["definitely_no_external_effect"] = False
         return failure(
             "timeout_unknown" if exc.unknown else exc.code,
             str(exc),

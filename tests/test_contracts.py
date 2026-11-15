@@ -26,7 +26,7 @@ def test_visible_actions_have_identical_v2_ids():
     }
 
 
-def test_identity_version_callbacks_and_effect_claim():
+def test_identity_version_callbacks_and_supported_effect_contract():
     manifest = load("extension.yaml")
     descriptor = load("extension-descriptor.yaml")
     assert manifest["extension_id"] == descriptor["extension_id"] == "flowsteward.x"
@@ -35,13 +35,23 @@ def test_identity_version_callbacks_and_effect_claim():
     assert "ingress_event" not in manifest["features"]
     callback = next(item for item in manifest["callbacks"] if item["callback_id"] == "events")
     assert callback["connection_scoped"] is True
-    assert callback["auth"]["type"] == "hmac_sha256_body"
+    assert callback["auth"]["type"] == "raw_body_hmac_sha256"
     assert callback["auth"]["signature_prefix"] == "sha256="
-    assert callback["auth"]["key_source"]["provider_id"] == "x_oauth"
+    assert callback["auth"]["signature_encoding"] == "base64"
+    assert callback["auth"]["secret_name"] == "webhook_signing_secret"
+    assert callback["auth"]["verification"] == {
+        "challenge_parameter": "crc_token",
+        "required_parameters": {},
+        "response": "hmac",
+        "response_field": "response_token",
+    }
+    assert "setup" not in callback
+    assert manifest["runtime"]["compatibility"]["platform_min"] == "1.9.0"
+    assert descriptor["runtime"]["compatibility"]["platform_min"] == "1.9.0"
     effect = next(
         item for item in manifest["external_effects"] if item["operation_id"] == "reply_to_post"
     )
-    assert effect["business_key_field"] == "reply_to_post_id"
+    assert "business_key_field" not in effect
     assert effect["test_mode_behavior"] == "suppress"
     trigger = manifest["workflow_triggers"][0]
     assert trigger["event_name"] == "x.comment.received"
@@ -112,3 +122,25 @@ def test_workflow_graphs_resolve_every_step_and_keep_human_approval():
                     if edge["target"]["id"] == step["step_id"]
                 ]
                 assert previous and all(item["step_kind"] == "approval" for item in previous)
+
+
+def test_named_connection_signing_secret_separate_from_app_bearer():
+    connection = load("contracts/connection_types.yaml")["connection_types"][0]
+    assert connection["secret_schema"]["properties"]["webhook_signing_secret"]["type"] == "string"
+    assert "app_bearer_token" not in connection["secret_schema"]["properties"]
+    assert "app_bearer_token" in load("schemas/secrets.schema.yaml")["properties"]
+
+
+def test_manager_setup_actions_report_processed_lifecycle_status():
+    actions = {row["action_id"]: row for row in load("ui/actions/actions.yaml")["actions"]}
+    operations = {
+        row["operation_id"]: row for row in load("contracts/operation_manifest.yaml")["operations"]
+    }
+    for name in ("configure_webhook", "get_webhook_status", "remove_webhook"):
+        assert actions[name]["workflow_visible"] is False
+        assert {"status", "configured", "reconciliation_required", "error"} <= set(
+            actions[name]["result_fields"]
+        )
+        assert {"status", "configured", "reconciliation_required", "error"} <= {
+            field["name"] for field in operations[name]["outputs"]
+        }

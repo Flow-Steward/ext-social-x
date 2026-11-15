@@ -27,16 +27,29 @@ def verified_subject(connection: dict) -> str:
     return subject
 
 
-def receive_event(options: dict, connection: dict) -> dict:
+def receive_event(options: dict, host: dict, context: dict) -> dict:
     callback = options.get("callback") or {}
     request = options.get("request") or {}
-    connection_id = connection.get("connection_id")
+    provider = request.get("provider") or {}
+    connection_id = provider.get("connection_id")
+    connection = {"connection_id": connection_id, "config": provider.get("binding_config") or {}}
+    principal = host.get("principal") or {}
+    scope = host.get("scope") or {}
     if (
-        callback.get("authenticated") is not True
+        principal.get("principal_type") != "system_actor"
+        or principal.get("actor_id") != "flowsteward.x_callback"
+        or ("actor_id" in context and context["actor_id"] != "flowsteward.x_callback")
+        or ("actor_type" in context and context["actor_type"] != "system_actor")
+        or provider.get("provider_key") != "flowsteward.x"
+        or callback.get("authenticated") is not True
         or callback.get("callback_id") != "events"
         or request.get("method") != "POST"
         or not connection_id
         or callback.get("connection_id") != connection_id
+        or not callback.get("project_id")
+        or callback.get("project_id") != scope.get("project_id")
+        or provider.get("project_id") != callback.get("project_id")
+        or context.get("project_id") != callback.get("project_id")
     ):
         raise XError(
             "invalid_payload", "An authenticated, exact-connection X POST callback is required."
@@ -74,7 +87,8 @@ def receive_event(options: dict, connection: dict) -> dict:
     text = post.get("text")
     if text is not None and (not isinstance(text, str) or len(text) > 100_000):
         raise XError("invalid_payload", "Comment text must be a bounded string.")
-    correlation = "x-comment:" + hashlib.sha256((subject + ":" + comment).encode()).hexdigest()
+    identity = ":".join((callback["project_id"], connection_id, subject, comment))
+    correlation = "x-comment:" + hashlib.sha256(identity.encode()).hexdigest()
     return {
         "ok": True,
         "result": {"status": "received"},

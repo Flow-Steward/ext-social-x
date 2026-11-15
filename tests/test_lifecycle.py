@@ -1,6 +1,5 @@
 """Remote lifecycle recovery and ambiguous paid-write contracts."""
 
-import hashlib
 import io
 from unittest.mock import Mock
 
@@ -29,13 +28,6 @@ def invocation(operation, state=None, **inputs):
                     "value": state,
                 }
             ]
-        }
-    if operation in {"configure_webhook", "get_webhook_status", "remove_webhook"}:
-        url = inputs.get("callback_url", "https://fs.example/callback/token")
-        target["callback_setup"] = {
-            "outcome": "unknown" if (state or {}).get("status") == "unknown" else "fresh",
-            "attempt_id": "attempt",
-            "callback_url_hash": hashlib.sha256(url.encode()).hexdigest(),
         }
     return {
         "contract_version": "extension_host_v2",
@@ -100,6 +92,8 @@ def test_crc_failure_saves_only_own_webhook_and_never_subscribes(monkeypatch):
 
     def request(self, method, path, **kw):
         calls.append(path)
+        if method == "GET" and path.startswith("/2/webhooks?"):
+            return {"data": []}
         return (
             {"data": {"id": "123"}}
             if path == "/2/users/me"
@@ -110,7 +104,8 @@ def test_crc_failure_saves_only_own_webhook_and_never_subscribes(monkeypatch):
     result = dispatch(
         invocation("configure_webhook", callback_url="https://fs.example/callback/token")
     )
-    assert result["error_code"] == "webhook_not_ready"
+    assert result["result"]["error"]["code"] == "webhook_not_ready"
+    assert result["result"]["configured"] is False
     assert result["project_state_updates"][0]["value"]["webhook_id"] == "700"
     assert "/2/activity/subscriptions" not in calls
 
@@ -125,6 +120,8 @@ def test_subscription_failure_saved_and_retry_does_not_create_another_webhook(mo
         if path.startswith("/2/webhooks"):
             row = {"id": "700", "valid": True, "url": "https://fs.example/callback/token"}
             return {"data": [row]} if method == "GET" else {"data": row}
+        if method == "GET":
+            return {"data": []}
         raise XError("rate_limited", "Please wait.")
 
     monkeypatch.setattr(XClient, "request", request)
@@ -209,13 +206,14 @@ def test_identity_verification_accepts_pending_target_and_injects_no_secret(monk
 
 def test_malformed_webhook_success_persists_unknown_state(monkeypatch):
     def request(self, method, path, **kw):
-        return {"data": {"id": "123"}} if path == "/2/users/me" else {"data": ["unexpected"]}
+        return {"data": []} if method == "GET" else {"data": ["unexpected"]}
 
     monkeypatch.setattr(XClient, "request", request)
     result = dispatch(
         invocation("configure_webhook", callback_url="https://fs.example/callback/token")
     )
-    assert result["error_code"] == "timeout_unknown"
+    assert result["result"]["error"]["code"] == "timeout_unknown"
+    assert result["result"]["configured"] is False
     assert result["project_state_updates"][0]["value"]["status"] == "unknown"
 
 

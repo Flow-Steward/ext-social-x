@@ -1,8 +1,6 @@
-"""Safe SDK envelopes and host-owned setup marker validation."""
+"""Safe SDK error envelopes."""
 
 from typing import Any
-
-from .client import XError
 
 
 def failure(code: str, message: str, *, unknown: bool = False, **extra: Any) -> dict:
@@ -16,20 +14,3 @@ def failure(code: str, message: str, *, unknown: bool = False, **extra: Any) -> 
         "definitely_no_external_effect": not unknown,
         **extra,
     }
-
-
-def require_callback_setup(target: dict, *, needs_attempt: bool = True) -> dict:
-    setup = target.get("callback_setup")
-    if (
-        not isinstance(setup, dict)
-        or setup.get("outcome") not in {"fresh", "unknown", "configured", "absent", "resumable"}
-        or (
-            needs_attempt
-            and (not isinstance(setup.get("attempt_id"), str) or not setup["attempt_id"])
-        )
-    ):
-        raise XError(
-            "invalid_payload",
-            "A host-owned callback setup intent is required; use the callback registration endpoint.",
-        )
-    return setup

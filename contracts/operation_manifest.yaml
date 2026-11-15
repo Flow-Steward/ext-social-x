@@ -202,7 +202,11 @@ operations:
     value_type: text
   - name: status
     value_type: text
-  - name: callback_setup
+  - name: configured
+    value_type: boolean
+  - name: reconciliation_required
+    value_type: boolean
+  - name: error
     value_type: object
   error_codes: *id001
 - operation_id: get_webhook_status
@@ -212,11 +216,18 @@ operations:
   category: social
   connection_type_ids:
   - x_account
-  inputs: []
+  inputs:
+  - name: callback_url
+    value_type: text
+    required: false
   outputs:
   - name: status
     value_type: text
-  - name: callback_setup
+  - name: configured
+    value_type: boolean
+  - name: reconciliation_required
+    value_type: boolean
+  - name: error
     value_type: object
   error_codes: *id001
 - operation_id: remove_webhook
@@ -230,7 +241,11 @@ operations:
   outputs:
   - name: status
     value_type: text
-  - name: callback_setup
+  - name: configured
+    value_type: boolean
+  - name: reconciliation_required
+    value_type: boolean
+  - name: error
     value_type: object
   error_codes: *id001
 - operation_id: receive_event

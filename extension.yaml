@@ -56,7 +56,6 @@ external_effects:
   channel: x
   idempotency: required
   test_mode_behavior: suppress
-  business_key_field: reply_to_post_id
 - operation_id: upload_media
   effect_kind: media_upload
   channel: x
@@ -104,21 +103,17 @@ callbacks:
   action_id: receive_event
   connection_scoped: true
   auth:
-    type: hmac_sha256_body
+    # ADR 0072 authoring contract; host implementation/integration verification pending.
+    type: raw_body_hmac_sha256
     signature_header: X-Twitter-Webhooks-Signature-OAuth2
-    digest_encoding: base64
     signature_prefix: sha256=
-    key_source:
-      type: oauth_client_secret
-      provider_id: x_oauth
-      field_id: client_secret
-    challenge:
-      query_parameter: crc_token
+    signature_encoding: base64
+    secret_name: webhook_signing_secret
+    verification:
+      challenge_parameter: crc_token
+      required_parameters: {}
+      response: hmac
       response_field: response_token
-  setup:
-    configure_action_id: configure_webhook
-    status_action_id: get_webhook_status
-    remove_action_id: remove_webhook
 entrypoint:
   mode: subprocess
   command:
@@ -134,6 +129,8 @@ ui_manifest: ui/ui_manifest.yaml
 action_manifest: ui/actions/actions.yaml
 query_manifest: ui/queries/queries.yaml
 runtime:
+  compatibility:
+    platform_min: 1.9.0
   contract_version: extension_host_v2
   extension_contract_v2:
     oauth_providers:

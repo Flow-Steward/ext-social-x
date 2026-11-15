@@ -8,6 +8,7 @@ from .client import XClient, XError
 from .events import numeric_id
 from .remote_receipts import complete_list
 from .webhook_state import state_response
+from .webhook_url import callback_url_hash
 
 WEBHOOK_LIST = "/2/webhooks?webhook_config.fields=id,url,valid"
 
@@ -53,7 +54,7 @@ def owned_webhook(app: XClient, state: dict) -> dict:
 
 def _unknown(state: dict) -> dict:
     state["status"] = "unknown"
-    return state_response(state, callback_outcome="unknown")
+    return state_response(state)
 
 
 def _reconcile_webhook(state: dict, app: XClient, expected_hash: str) -> dict | None:
@@ -77,13 +78,19 @@ def _reconcile_webhook(state: dict, app: XClient, expected_hash: str) -> dict | 
     return matches[0] if matches else None
 
 
-def status(state: dict, user: XClient, app: XClient, setup: dict, subject: str) -> dict:
+def status(state: dict, user: XClient, app: XClient, options: dict, subject: str) -> dict:
     if state.get("account_user_id") and state["account_user_id"] != subject:
         raise XError(
             "invalid_connection",
             "Saved remote state belongs to a previous OAuth account; reconcile it using the original account.",
         )
-    expected_hash = setup.get("callback_url_hash") or state.get("callback_url_hash")
+    expected_hash = (
+        callback_url_hash(options["callback_url"])
+        if options.get("callback_url")
+        else state.get("callback_url_hash")
+    )
+    if state.get("callback_url_hash") and expected_hash != state["callback_url_hash"]:
+        raise XError("webhook_not_ready", "Callback URL differs from the saved registration.")
     if expected_hash:
         try:
             webhook = _reconcile_webhook(state, app, expected_hash)
@@ -96,7 +103,7 @@ def status(state: dict, user: XClient, app: XClient, setup: dict, subject: str) 
             state.update(
                 status="not_configured", account_user_id=subject, callback_url_hash=expected_hash
             )
-            return state_response(state, callback_outcome="absent")
+            return state_response(state)
         state.update(
             webhook_id=webhook["id"], callback_url_hash=expected_hash, account_user_id=subject
         )
@@ -141,12 +148,12 @@ def status(state: dict, user: XClient, app: XClient, setup: dict, subject: str) 
         return _unknown(state)
     if not matching:
         state.pop("subscription_id", None)
-        state["status"] = "webhook_created"
-        return state_response(state, callback_outcome="resumable")
+        state["status"] = "webhook_created" if webhook.get("valid") is True else "not_ready"
+        return state_response(state)
     state["subscription_id"] = matching[0]["subscription_id"]
     filter_ = matching[0]["filter"]
     if set(filter_) - {"user_id", "qualifiers"} or filter_.get("qualifiers", {}) != {}:
         return _unknown(state)
     ready = webhook.get("valid") is True
     state["status"] = "ready" if ready else "not_ready"
-    return state_response(state, callback_outcome="configured" if ready else "resumable")
+    return state_response(state)
