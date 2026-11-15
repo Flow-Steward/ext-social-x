@@ -195,7 +195,7 @@ steps:
   skill_id: x_comment_reply
   input_mapping_jsonb:
     comment_text: state.inputs.comment_text
-    parent_post: state.parent_post
+    parent_post: state.parent_post.text
   output_mapping_jsonb:
     reply_text: state.reply_text
 - step_id: validate_reply

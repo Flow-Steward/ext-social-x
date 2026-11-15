@@ -20,6 +20,10 @@ is the already published article, canonical URL, and project-scoped cover
 artifact. A separate configured WordPress/HTTP retrieval step may populate them.
 The media ID is wired into a one-element array on the publish step.
 
+The reply skill receives `comment_text` and the parent post's quoted text in
+`parent_post`, mapped from `state.parent_post.text`. Article body and excerpt
+remain optional inputs of the announcement skill.
+
 The comment workflow intentionally stops unless `reply_allowed` is true.
 Before enabling the trigger, replace the `reply_policy` condition with your
 actual policy and add a host-backed opt-out lookup before `check_opt_out` (or
