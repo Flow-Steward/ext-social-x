@@ -26,7 +26,8 @@ API may further restrict protected-account events.
    **same app's OAuth2 client secret**. Core resolves this named connection secret;
    no OAuth-configuration secret lookup or lineage is assumed. Never enter the
    app bearer token or the legacy OAuth1 consumer secret in this field.
-2. Authorize an `x_account` connection with `tweet.read tweet.write users.read
+2. In **X setup**, use the account connection form to authorize an `x_account`
+   connection with `tweet.read tweet.write users.read
    media.write offline.access`. Missing scopes require reauthorization. Core's
    post-connect `verify_identity` action reads `/2/users/me`; the verified user ID
    is the host-owned `connection.config.oauth.subject` with lifecycle status

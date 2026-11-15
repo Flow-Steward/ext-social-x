@@ -1,6 +1,13 @@
 page_id: setup
 title: X setup
 components:
+- component_id: x_account
+  type: connection_form
+  title: X account
+  data:
+    oauth_provider_id: x_oauth
+    connection_type: x_account
+    oauth_intent: x_connect
 - component_id: x_setup
   type: markdown
   body: >-

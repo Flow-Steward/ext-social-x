@@ -102,6 +102,26 @@ def test_default_disabled_automation_and_scopes():
     assert send["input_mapping_jsonb"]["reply_to_post_id"] == "state.inputs.comment_id"
 
 
+def test_setup_page_owns_the_declared_oauth_authorization_intent():
+    provider = load("extension.yaml")["runtime"]["extension_contract_v2"]["oauth_providers"][0]
+    connection = load("contracts/connection_types.yaml")["connection_types"][0]
+    page = load("ui/pages/setup.yaml")
+    forms = [
+        component for component in page["components"] if component["type"] == "connection_form"
+    ]
+
+    assert len(forms) == 1
+    assert page["page_id"] == provider["setup_page_id"]
+    assert forms[0]["data"] == {
+        "oauth_provider_id": provider["provider_id"],
+        "connection_type": connection["connection_type_id"],
+        "oauth_intent": provider["authorization_intents"][0]["intent_id"],
+    }
+    assert not any(
+        "access_token" in str(field.get("path", "")) for field in forms[0].get("fields", [])
+    )
+
+
 def test_portable_pinned_wheel_hashes():
     import hashlib
 
