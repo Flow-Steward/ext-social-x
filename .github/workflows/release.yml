@@ -15,6 +15,7 @@ jobs:
   release:
     permissions:
       contents: write
-    uses: Flow-Steward/extensions/.github/workflows/release-extension.yml@1f695921b967f1ba734d13e332db3d9487f73201
+    uses: Flow-Steward/extensions/.github/workflows/release-extension.yml@296fa16dfec746f80c26bc05663ed9832c2043c2
     with:
       tag: ${{ inputs.tag }}
+      expected_visibility: private
