@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    {
+      "name": "twitter-text-parser",
+      "upstream_version": "3.0.0",
+      "version": "3.0.0+flowsteward.1",
+      "upstream_url": "https://files.pythonhosted.org/packages/49/10/7ef9bd301d70cb92a35eee7d38a6378c8b327dc16bdac3089386bd5f3231/twitter_text_parser-3.0.0-py3-none-any.whl",
+      "upstream_sha256": "b36bd22e147db2234e79c73b021f10c3073e8c54f22b68c31696239b6917cdd3",
+      "patches": "patches/twitter-text-resources.json",
+      "patch_sha256": "eedf3aff50586bdf39e9f6808447ec04a5af3ba7f48a26734413a3e1d0e4a2e1",
+      "wheel_filename": "twitter_text_parser-3.0.0+flowsteward.1-py3-none-any.whl",
+      "wheel_sha256": "9ee666cc426ee6033ed1191d9e1cbde5ff9568b359de63e3cf8d7a519e803332"
+    }
+  ]
+}

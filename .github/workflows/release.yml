@@ -18,4 +18,4 @@ jobs:
     uses: Flow-Steward/extensions/.github/workflows/release-extension.yml@296fa16dfec746f80c26bc05663ed9832c2043c2
     with:
       tag: ${{ inputs.tag }}
-      expected_visibility: private
+      expected_visibility: public

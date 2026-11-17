@@ -1,0 +1,26 @@
+[
+  {
+    "path": "twitter_text/regexp/emoji.py",
+    "sha256": "33fcb3e929dc532f00980c67498f774825eb647b785f4f0d14e15f67c97ab60f",
+    "replacements": [
+      [
+        "import pkg_resources",
+        "from importlib.resources import files"
+      ],
+      [
+        "pkg_resources.resource_string(__name__, 'emoji-test.txt').decode('utf-8')",
+        "files(__package__).joinpath('emoji-test.txt').read_text(encoding='utf-8')"
+      ]
+    ]
+  },
+  {
+    "path": "twitter_text_parser-3.0.0.dist-info/METADATA",
+    "sha256": "328d7d8598de89cdde4539078627104572db25ece326d650884932db23044846",
+    "replacements": [
+      [
+        "Version: 3.0.0\n",
+        "Version: 3.0.0+flowsteward.1\n"
+      ]
+    ]
+  }
+]
