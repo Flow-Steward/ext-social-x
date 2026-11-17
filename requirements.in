@@ -1,4 +1,5 @@
+--find-links ./wheels
 Pillow==13.0.0
-twitter-text-parser==3.0.0
+twitter-text-parser==3.0.0+flowsteward.1
 
 setuptools==84.2.1

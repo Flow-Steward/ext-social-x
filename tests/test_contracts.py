@@ -52,7 +52,7 @@ def test_identity_version_callbacks_and_supported_effect_contract():
     manifest = load("extension.yaml")
     descriptor = load("extension-descriptor.yaml")
     assert manifest["extension_id"] == descriptor["extension_id"] == "flowsteward.x"
-    assert manifest["version"] == descriptor["release_version"] == "1.0.0"
+    assert manifest["version"] == descriptor["release_version"] == "1.0.1"
     assert manifest["kind"] == "tool_provider"
     assert "ingress_event" not in manifest["features"]
     callback = next(item for item in manifest["callbacks"] if item["callback_id"] == "events")
