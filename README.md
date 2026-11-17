@@ -186,3 +186,11 @@ AI sending is not tested without written X permission.
 X credits, webhook events, media, context reads and model usage are separately
 billable under current provider terms. Check the developer console before live
 runs; this bundle does not hardcode prices or claim a free allowance.
+
+## Support
+
+Open the extension’s **Support** tab to report a problem or request a feature in
+the [public issue tracker](https://github.com/Flow-Steward/ext-social-x/issues).
+Include the extension and Flow Steward versions, expected and actual behavior,
+the exact error, workflow or action, and the time. Review diagnostics before
+sharing; never post secrets or customer data in public issues.

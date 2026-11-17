@@ -11,7 +11,7 @@ def main() -> None:
     manifest = yaml.safe_load((root / "extension.yaml").read_text())
     descriptor = yaml.safe_load((root / "extension-descriptor.yaml").read_text())
     assert manifest["extension_id"] == descriptor["extension_id"] == "flowsteward.x"
-    assert manifest["version"] == descriptor["release_version"] == "1.0.1"
+    assert manifest["version"] == descriptor["release_version"] == "1.0.2"
     for row in manifest["python_requirements"]:
         wheels = list((root / "wheels").glob(row["name"].replace("-", "_") + "-*.whl"))
         assert wheels, row["name"]
