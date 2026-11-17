@@ -1,6 +1,6 @@
 schema_version: extension_descriptor_v1
 extension_id: flowsteward.x
-release_version: 1.0.1
+release_version: 1.0.2
 extension_type: service_extension
 identity:
   display_name: X
@@ -10,6 +10,7 @@ identity:
   - social
 vendor:
   vendor_name: Flow Steward
+  support_url: https://github.com/Flow-Steward/ext-social-x/issues
 listing:
   visibility: private_reference
   category: marketing

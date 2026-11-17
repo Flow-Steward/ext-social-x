@@ -4,11 +4,12 @@ lifecycle:
   data_migrations: []
 extension_id: flowsteward.x
 kind: tool_provider
-version: 1.0.1
+version: 1.0.2
 display_name: X
 description: Publish article announcements on X and handle direct replies in reviewed workflows.
 vendor:
   name: Flow Steward
+  support_url: https://github.com/Flow-Steward/ext-social-x/issues
 listing:
   category: marketing
   tags:
